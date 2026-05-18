@@ -4,20 +4,16 @@ import { useState } from "react";
 
 import { useRouter } from "next/navigation";
 
-import {
-  createClient,
-} from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
 
-const supabase =
-  createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 export default function LoginPage() {
 
-  const router =
-    useRouter();
+  const router = useRouter();
 
   const [email, setEmail] =
     useState("");
@@ -34,10 +30,7 @@ export default function LoginPage() {
 
       setLoading(true);
 
-      const {
-        data,
-        error,
-      } =
+      const { data, error } =
         await supabase.auth.signInWithPassword({
           email,
           password,
@@ -55,19 +48,17 @@ export default function LoginPage() {
 
       localStorage.setItem(
         "legacy-user",
-        JSON.stringify(
-          data.user
-        )
+        JSON.stringify(data.user)
       );
 
       router.push("/");
 
-    } catch (error) {
+    } catch (err) {
 
-      console.error(error);
+      console.error(err);
 
       alert(
-        "Login failed"
+        "Authentication failed"
       );
 
     }
@@ -77,9 +68,9 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f5f5f7] flex items-center justify-center p-10">
+    <div className="min-h-screen bg-[#f5f5f7] flex items-center justify-center p-6">
 
-      <div className="w-full max-w-[520px] rounded-[40px] border border-black/[0.06] bg-white p-10">
+      <div className="w-full max-w-[520px] rounded-[40px] border border-black/[0.06] bg-white p-10 shadow-[0_20px_80px_rgba(0,0,0,0.06)]">
 
         <p className="uppercase tracking-[0.28em] text-zinc-400 text-[11px]">
           Secure Infrastructure Access
@@ -90,7 +81,7 @@ export default function LoginPage() {
         </h1>
 
         <p className="text-zinc-500 text-[15px] leading-relaxed mt-5">
-          Enterprise operational intelligence system.
+          Enterprise operational intelligence platform.
         </p>
 
         {/* EMAIL */}
@@ -98,17 +89,17 @@ export default function LoginPage() {
         <div className="mt-10">
 
           <p className="text-[13px] text-zinc-500 mb-3">
-            Email
+            Email Address
           </p>
 
           <input
+            type="email"
             value={email}
             onChange={(e) =>
-              setEmail(
-                e.target.value
-              )
+              setEmail(e.target.value)
             }
-            className="w-full h-[58px] rounded-2xl border border-black/[0.06] px-5 outline-none"
+            placeholder="you@company.com"
+            className="w-full h-[58px] rounded-2xl border border-black/[0.06] px-5 outline-none bg-white"
           />
 
         </div>
@@ -125,42 +116,35 @@ export default function LoginPage() {
             type="password"
             value={password}
             onChange={(e) =>
-              setPassword(
-                e.target.value
-              )
+              setPassword(e.target.value)
             }
-            className="w-full h-[58px] rounded-2xl border border-black/[0.06] px-5 outline-none"
+            placeholder="••••••••"
+            className="w-full h-[58px] rounded-2xl border border-black/[0.06] px-5 outline-none bg-white"
           />
 
         </div>
 
-        {/* BUTTON */}
+        {/* LOGIN BUTTON */}
 
         <button
           onClick={login}
           disabled={loading}
-          className="w-full h-[58px] rounded-2xl bg-black text-white mt-8 text-[14px] font-medium disabled:opacity-50"
+          className="w-full h-[58px] rounded-2xl bg-black text-white mt-8 text-[14px] font-medium transition-all duration-300 hover:opacity-90 disabled:opacity-50"
         >
-          {loading
-            ? "Accessing..."
-            : "Access Infrastructure"}
+          {
+            loading
+              ? "Accessing Infrastructure..."
+              : "Access Infrastructure"
+          }
         </button>
 
-        {/* ACCOUNTS */}
+        {/* FOOTER */}
 
-        <div className="rounded-[24px] border border-black/[0.06] bg-[#fafafa] p-5 mt-8">
+        <div className="mt-8 text-center">
 
-          <p className="text-[13px] font-medium">
-            Enterprise Accounts
+          <p className="text-[12px] text-zinc-400">
+            Authorized enterprise access only.
           </p>
-
-          <div className="space-y-2 mt-4 text-[12px] text-zinc-500">
-
-            <p>
-              admin@legacyos.com / legacy123
-            </p>
-
-          </div>
 
         </div>
 
