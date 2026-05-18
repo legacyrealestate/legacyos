@@ -1,20 +1,20 @@
 import { NextResponse } from "next/server";
 
-export function proxy(
-  req: any
-) {
+export function proxy(req: any) {
 
-  const token =
-    req.cookies.get(
-      "sb-access-token"
-    );
+  const hasSupabaseCookie =
+    req.cookies
+      .getAll()
+      .some((cookie: any) =>
+        cookie.name.includes("sb-")
+      );
 
   const isLoginPage =
     req.nextUrl.pathname ===
     "/login";
 
   if (
-    !token &&
+    !hasSupabaseCookie &&
     !isLoginPage
   ) {
 
@@ -28,7 +28,7 @@ export function proxy(
   }
 
   if (
-    token &&
+    hasSupabaseCookie &&
     isLoginPage
   ) {
 
@@ -46,32 +46,18 @@ export function proxy(
 
 export const config = {
   matcher: [
-
     "/",
-
     "/calls",
-
     "/maintenance",
-
     "/leasing",
-
     "/operations",
-
     "/vendors",
-
     "/properties",
-
     "/email",
-
     "/contacts",
-
     "/integrations",
-
     "/settings",
-
     "/command",
-
     "/login",
-
   ],
 };
