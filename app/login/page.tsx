@@ -4,6 +4,16 @@ import { useState } from "react";
 
 import { useRouter } from "next/navigation";
 
+import {
+  createClient,
+} from "@supabase/supabase-js";
+
+const supabase =
+  createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
 export default function LoginPage() {
 
   const router =
@@ -12,10 +22,8 @@ export default function LoginPage() {
   const [email, setEmail] =
     useState("");
 
-  const [
-    password,
-    setPassword,
-  ] = useState("");
+  const [password, setPassword] =
+    useState("");
 
   const [loading, setLoading] =
     useState(false);
@@ -26,39 +34,24 @@ export default function LoginPage() {
 
       setLoading(true);
 
-      const res =
-        await fetch(
-          "/api/login",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-            body: JSON.stringify({
-              email,
-              password,
-            }),
-          }
-        );
+      const {
+        data,
+        error,
+      } =
+        await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
 
-      const data =
-        await res.json();
+      if (error) {
 
-      if (!res.ok) {
-
-        alert(
-          data.error
-        );
+        alert(error.message);
 
         setLoading(false);
 
         return;
 
       }
-
-      document.cookie =
-        "legacy-auth=true; path=/";
 
       localStorage.setItem(
         "legacy-user",
@@ -72,6 +65,10 @@ export default function LoginPage() {
     } catch (error) {
 
       console.error(error);
+
+      alert(
+        "Login failed"
+      );
 
     }
 
@@ -149,30 +146,18 @@ export default function LoginPage() {
             : "Access Infrastructure"}
         </button>
 
-        {/* MOCK ACCOUNTS */}
+        {/* ACCOUNTS */}
 
         <div className="rounded-[24px] border border-black/[0.06] bg-[#fafafa] p-5 mt-8">
 
           <p className="text-[13px] font-medium">
-            Mock Accounts
+            Enterprise Accounts
           </p>
 
           <div className="space-y-2 mt-4 text-[12px] text-zinc-500">
 
             <p>
               admin@legacyos.com / legacy123
-            </p>
-
-            <p>
-              operations@legacyos.com / ops123
-            </p>
-
-            <p>
-              vendor@legacyos.com / vendor123
-            </p>
-
-            <p>
-              owner@legacyos.com / owner123
             </p>
 
           </div>
