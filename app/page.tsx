@@ -1,65 +1,351 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
-  return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+import { useEffect, useState } from "react";
+
+import AppShell from "@/app/components/AppShell";
+import useRealtime from "@/app/hooks/useRealtime";
+
+export default function DashboardPage() {
+
+  const [data, setData] =
+    useState<any>(null);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const loadDashboard =
+    async () => {
+
+      try {
+
+        const res =
+          await fetch(
+            "/api/dashboard"
+          );
+
+        const dashboard =
+          await res.json();
+
+        setData(dashboard);
+
+      } catch (error) {
+
+        console.error(error);
+
+      }
+
+      setLoading(false);
+
+    };
+
+  useEffect(() => {
+
+    loadDashboard();
+
+  }, []);
+
+  useRealtime(
+    "maintenance_tickets",
+    loadDashboard
+  );
+
+  useRealtime(
+    "notifications",
+    loadDashboard
+  );
+
+  useRealtime(
+    "operations_feed",
+    loadDashboard
+  );
+
+  const startSimulation =
+    async () => {
+
+      await fetch(
+        "/api/simulate",
+        {
+          method: "POST",
+        }
+      );
+
+    };
+
+  if (loading || !data) {
+
+    return (
+      <AppShell>
+
+        <div className="rounded-[40px] border border-black/[0.06] bg-white p-10">
+
+          <p className="text-zinc-500">
+            Loading operational intelligence...
           </p>
+
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+
+      </AppShell>
+    );
+  }
+
+  return (
+    <AppShell>
+
+      <div className="rounded-[42px] border border-black/[0.06] bg-white p-10">
+
+        <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-8">
+
+          <div>
+
+            <p className="uppercase tracking-[0.28em] text-zinc-400 text-[11px]">
+              Autonomous Infrastructure
+            </p>
+
+            <h1 className="text-[38px] md:text-[64px] font-semibold tracking-tight mt-5">
+              LegacyOS
+            </h1>
+
+            <p className="text-zinc-500 text-[16px] leading-relaxed mt-5 max-w-3xl">
+              AI-powered operational intelligence
+              system for maintenance, escalations,
+              property infrastructure, vendor
+              coordination, and tenant workflows.
+            </p>
+
+          </div>
+
+          <div className="flex flex-wrap gap-4">
+
+            <button
+              onClick={
+                startSimulation
+              }
+              className="h-[54px] px-6 rounded-2xl bg-black text-white text-[13px]"
+            >
+              Start Live Simulation
+            </button>
+
+            <div className="h-[54px] px-6 rounded-2xl border border-black/[0.08] bg-[#fafafa] text-[12px] flex items-center">
+              LIVE SYSTEMS
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-5 mt-8">
+
+        <MetricCard
+          title="Calls"
+          value={
+            data.metrics.totalCalls
+          }
+        />
+
+        <MetricCard
+          title="Emergencies"
+          value={
+            data.metrics.emergencies
+          }
+        />
+
+        <MetricCard
+          title="Escalated"
+          value={
+            data.metrics.escalated
+          }
+        />
+
+        <MetricCard
+          title="Vendors"
+          value={
+            data.metrics.vendors
+          }
+        />
+
+        <MetricCard
+          title="Properties"
+          value={
+            data.metrics.properties
+          }
+        />
+
+        <MetricCard
+          title="Alerts"
+          value={
+            data.metrics
+              .notifications
+          }
+        />
+
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mt-8">
+
+        <div className="rounded-[36px] border border-black/[0.06] bg-white p-8">
+
+          <div className="flex items-center justify-between">
+
+            <div>
+
+              <p className="uppercase tracking-[0.24em] text-zinc-400 text-[10px]">
+                Live Operations
+              </p>
+
+              <h2 className="text-[32px] font-semibold tracking-tight mt-4">
+                Operations Feed
+              </h2>
+
+            </div>
+
+            <div className="h-[34px] px-4 rounded-full bg-black text-white text-[10px] flex items-center">
+              LIVE
+            </div>
+
+          </div>
+
+          <div className="space-y-4 mt-8">
+
+            {data.operations
+              ?.slice(0, 6)
+              ?.map(
+                (
+                  item: any,
+                  index: number
+                ) => (
+
+                  <div
+                    key={index}
+                    className="rounded-[24px] border border-black/[0.06] bg-[#fafafa] p-5"
+                  >
+
+                    <div className="flex items-center justify-between gap-4">
+
+                      <h3 className="text-[15px] font-medium">
+                        {
+                          item.title
+                        }
+                      </h3>
+
+                      <div className="h-[28px] px-3 rounded-full bg-black text-white text-[10px] flex items-center">
+                        {
+                          item.type
+                        }
+                      </div>
+
+                    </div>
+
+                    <p className="text-zinc-500 text-[13px] leading-relaxed mt-4">
+                      {
+                        item.description
+                      }
+                    </p>
+
+                  </div>
+
+                )
+              )}
+
+          </div>
+
+        </div>
+
+        <div className="rounded-[36px] border border-black/[0.06] bg-white p-8">
+
+          <p className="uppercase tracking-[0.24em] text-zinc-400 text-[10px]">
+            Autonomous Systems
+          </p>
+
+          <h2 className="text-[32px] font-semibold tracking-tight mt-4">
+            AI Infrastructure
+          </h2>
+
+          <div className="space-y-4 mt-8">
+
+            <SystemCard
+              title="Operational AI"
+              status="Analyzing"
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+            <SystemCard
+              title="Realtime Sync"
+              status="Live"
+            />
+
+            <SystemCard
+              title="Voice Infrastructure"
+              status="Online"
+            />
+
+            <SystemCard
+              title="Vendor Routing"
+              status="Connected"
+            />
+
+            <SystemCard
+              title="Escalation Engine"
+              status="Autonomous"
+            />
+
+            <SystemCard
+              title="Risk Monitoring"
+              status="Active"
+            />
+
+          </div>
+
         </div>
-      </main>
+
+      </div>
+
+    </AppShell>
+  );
+}
+
+function MetricCard({
+  title,
+  value,
+}: {
+  title: string;
+  value: number;
+}) {
+
+  return (
+    <div className="rounded-[30px] border border-black/[0.06] bg-white p-7">
+
+      <p className="uppercase tracking-[0.24em] text-zinc-400 text-[10px]">
+        {title}
+      </p>
+
+      <h2 className="text-[42px] font-semibold tracking-tight mt-5">
+        {value}
+      </h2>
+
+    </div>
+  );
+}
+
+function SystemCard({
+  title,
+  status,
+}: {
+  title: string;
+  status: string;
+}) {
+
+  return (
+    <div className="rounded-[24px] border border-black/[0.06] bg-[#fafafa] p-5 flex items-center justify-between">
+
+      <p className="text-[14px]">
+        {title}
+      </p>
+
+      <div className="h-[30px] px-4 rounded-full bg-black text-white text-[10px] flex items-center">
+        {status}
+      </div>
+
     </div>
   );
 }
