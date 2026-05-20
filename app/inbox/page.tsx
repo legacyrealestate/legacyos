@@ -16,15 +16,19 @@ export default function InboxPage() {
   const [processingId, setProcessingId] =
     useState<string | null>(null);
 
+  const [aiReply, setAiReply] =
+    useState("");
+
+  const [showReplyModal, setShowReplyModal] =
+    useState(false);
+
   const loadCalls =
     async () => {
 
       try {
 
         const res =
-          await fetch(
-            "/api/calls"
-          );
+          await fetch("/api/calls");
 
         const data =
           await res.json();
@@ -76,6 +80,59 @@ export default function InboxPage() {
         );
 
         loadCalls();
+
+      } catch (error) {
+
+        console.error(error);
+
+      }
+
+      setProcessingId(null);
+
+    };
+
+  /*
+    AI REPLY
+  */
+
+  const generateReply =
+    async (
+      call: any
+    ) => {
+
+      try {
+
+        setProcessingId(call.id);
+
+        const res =
+          await fetch(
+            "/api/ai-reply",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+              body: JSON.stringify({
+                tenant_name:
+                  call.tenant_name,
+                issue:
+                  call.issue,
+                urgency:
+                  call.urgency,
+              }),
+            }
+          );
+
+        const data =
+          await res.json();
+
+        setAiReply(
+          data.reply ||
+          "No response generated."
+        );
+
+        setShowReplyModal(true);
 
       } catch (error) {
 
@@ -202,15 +259,11 @@ export default function InboxPage() {
                 <div className="flex items-center gap-3 flex-wrap">
 
                   <h2 className="text-[28px] font-semibold tracking-tight">
-                    {
-                      call.tenant_name
-                    }
+                    {call.tenant_name}
                   </h2>
 
                   <div className="h-[32px] px-4 rounded-full bg-black text-white text-[10px] flex items-center">
-                    {
-                      call.urgency
-                    }
+                    {call.urgency}
                   </div>
 
                 </div>
@@ -220,8 +273,7 @@ export default function InboxPage() {
                 </p>
 
                 <p className="text-zinc-400 text-[12px] mt-2">
-                  Property:{" "}
-                  {call.property}
+                  Property: {call.property}
                 </p>
 
               </div>
@@ -287,9 +339,19 @@ export default function InboxPage() {
             <div className="flex flex-wrap gap-4 mt-8">
 
               <button
-                className="h-[52px] px-6 rounded-2xl bg-black text-white text-[14px]"
+                onClick={() =>
+                  generateReply(call)
+                }
+                disabled={
+                  processingId ===
+                  call.id
+                }
+                className="h-[52px] px-6 rounded-2xl bg-black text-white text-[14px] disabled:opacity-50"
               >
-                AI Reply
+                {processingId ===
+                call.id
+                  ? "Generating..."
+                  : "AI Reply"}
               </button>
 
               <button
@@ -300,9 +362,7 @@ export default function InboxPage() {
 
               <button
                 onClick={() =>
-                  escalate(
-                    call.id
-                  )
+                  escalate(call.id)
                 }
                 disabled={
                   processingId ===
@@ -323,6 +383,43 @@ export default function InboxPage() {
         ))}
 
       </div>
+
+      {showReplyModal && (
+
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-6">
+
+          <div className="w-full max-w-2xl rounded-[34px] bg-white p-8">
+
+            <div className="flex items-center justify-between">
+
+              <h2 className="text-[28px] font-semibold">
+                AI Generated Reply
+              </h2>
+
+              <button
+                onClick={() =>
+                  setShowReplyModal(false)
+                }
+                className="text-zinc-500"
+              >
+                Close
+              </button>
+
+            </div>
+
+            <div className="rounded-[24px] border border-black/[0.06] bg-[#fafafa] p-6 mt-6">
+
+              <p className="text-zinc-700 whitespace-pre-wrap leading-relaxed">
+                {aiReply}
+              </p>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      )}
 
     </AppShell>
   );
