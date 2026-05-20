@@ -42,16 +42,14 @@ export default function LoginPage() {
       );
 
       /*
-        IMPORTANT:
-        give Supabase time
-        to persist session
+        WAIT FOR SESSION
       */
 
       setTimeout(() => {
 
         window.location.href = "/";
 
-      }, 500);
+      }, 1200);
 
     } catch (err) {
 
@@ -84,8 +82,6 @@ export default function LoginPage() {
           Enterprise operational intelligence platform.
         </p>
 
-        {/* EMAIL */}
-
         <div className="mt-10">
 
           <p className="text-[13px] text-zinc-500 mb-3">
@@ -103,8 +99,6 @@ export default function LoginPage() {
           />
 
         </div>
-
-        {/* PASSWORD */}
 
         <div className="mt-6">
 
@@ -124,8 +118,6 @@ export default function LoginPage() {
 
         </div>
 
-        {/* LOGIN BUTTON */}
-
         <button
           onClick={login}
           disabled={loading}
@@ -137,8 +129,6 @@ export default function LoginPage() {
               : "Access Infrastructure"
           }
         </button>
-
-        {/* FOOTER */}
 
         <div className="mt-8 text-center">
 
