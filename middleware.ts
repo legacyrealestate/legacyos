@@ -1,12 +1,23 @@
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
-export function middleware(request: Request) {
-
-  const url =
-    new URL(request.url);
+export function middleware(request: NextRequest) {
 
   const pathname =
-    url.pathname;
+    request.nextUrl.pathname;
+
+  /*
+    ALLOW API ROUTES
+    (VERY IMPORTANT FOR WEBHOOKS)
+  */
+
+  if (
+    pathname.startsWith("/api")
+  ) {
+
+    return NextResponse.next();
+
+  }
 
   /*
     ALLOW STATIC FILES
@@ -28,10 +39,6 @@ export function middleware(request: Request) {
 
   const cookies =
     request.headers.get("cookie") || "";
-
-  /*
-    CHECK AUTH SESSION
-  */
 
   const isLoggedIn =
     cookies.includes("auth-token");
@@ -57,7 +64,7 @@ export function middleware(request: Request) {
   }
 
   /*
-    PROTECTED ROUTES
+    PROTECT DASHBOARD PAGES
   */
 
   if (!isLoggedIn) {
@@ -71,3 +78,9 @@ export function middleware(request: Request) {
   return NextResponse.next();
 
 }
+
+export const config = {
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico).*)",
+  ],
+};
