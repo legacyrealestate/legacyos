@@ -23,13 +23,18 @@ export function middleware(request: Request) {
   }
 
   /*
-    CHECK AUTH COOKIE
+    GET ALL COOKIES
   */
 
-  const hasAuth =
-    request.headers
-      .get("cookie")
-      ?.includes("sb-");
+  const cookies =
+    request.headers.get("cookie") || "";
+
+  /*
+    CHECK SUPABASE AUTH TOKEN
+  */
+
+  const isLoggedIn =
+    cookies.includes("auth-token");
 
   /*
     ALLOW LOGIN PAGE
@@ -39,17 +44,10 @@ export function middleware(request: Request) {
     pathname === "/login"
   ) {
 
-    /*
-      already logged in
-    */
-
-    if (hasAuth) {
+    if (isLoggedIn) {
 
       return NextResponse.redirect(
-        new URL(
-          "/",
-          request.url
-        )
+        new URL("/", request.url)
       );
 
     }
@@ -59,16 +57,13 @@ export function middleware(request: Request) {
   }
 
   /*
-    NOT LOGGED IN
+    PROTECT ROUTES
   */
 
-  if (!hasAuth) {
+  if (!isLoggedIn) {
 
     return NextResponse.redirect(
-      new URL(
-        "/login",
-        request.url
-      )
+      new URL("/login", request.url)
     );
 
   }
