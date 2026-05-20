@@ -23,21 +23,21 @@ export function middleware(request: Request) {
   }
 
   /*
-    GET ALL COOKIES
+    GET COOKIES
   */
 
   const cookies =
     request.headers.get("cookie") || "";
 
   /*
-    CHECK SUPABASE AUTH TOKEN
+    CHECK AUTH SESSION
   */
 
   const isLoggedIn =
     cookies.includes("auth-token");
 
   /*
-    ALLOW LOGIN PAGE
+    LOGIN PAGE
   */
 
   if (
@@ -57,7 +57,7 @@ export function middleware(request: Request) {
   }
 
   /*
-    PROTECT ROUTES
+    PROTECTED ROUTES
   */
 
   if (!isLoggedIn) {
