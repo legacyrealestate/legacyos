@@ -20,7 +20,7 @@ export default function LoginPage() {
 
       setLoading(true);
 
-      const { data, error } =
+      const { error } =
         await supabase.auth.signInWithPassword({
           email,
           password,
@@ -36,20 +36,7 @@ export default function LoginPage() {
 
       }
 
-      console.log(
-        "LOGIN SUCCESS",
-        data
-      );
-
-      /*
-        WAIT FOR SESSION
-      */
-
-      setTimeout(() => {
-
-        window.location.href = "/";
-
-      }, 1200);
+      window.location.href = "/";
 
     } catch (err) {
 
