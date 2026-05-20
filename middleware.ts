@@ -23,10 +23,7 @@ export function middleware(
     );
 
   /*
-    ALLOW:
-    - next internals
-    - api routes
-    - static assets
+    ALLOW NEXT INTERNALS
   */
 
   if (
@@ -40,14 +37,14 @@ export function middleware(
   }
 
   /*
-    SUPABASE SESSION COOKIE
+    CHECK FOR ANY SUPABASE SESSION COOKIE
   */
 
   const hasSupabaseSession =
     request.cookies
       .getAll()
       .some((cookie) =>
-        cookie.name.includes("sb-")
+        cookie.name.startsWith("sb-")
       );
 
   /*
