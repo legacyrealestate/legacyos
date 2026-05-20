@@ -1,12 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { supabase } from "@/lib/supabase";
 
 export default function LoginPage() {
 
@@ -41,12 +36,22 @@ export default function LoginPage() {
 
       }
 
-      localStorage.setItem(
-        "legacy-user",
-        JSON.stringify(data.user)
+      console.log(
+        "LOGIN SUCCESS",
+        data
       );
 
-      window.location.href = "/";
+      /*
+        IMPORTANT:
+        give Supabase time
+        to persist session
+      */
+
+      setTimeout(() => {
+
+        window.location.href = "/";
+
+      }, 500);
 
     } catch (err) {
 
@@ -79,6 +84,8 @@ export default function LoginPage() {
           Enterprise operational intelligence platform.
         </p>
 
+        {/* EMAIL */}
+
         <div className="mt-10">
 
           <p className="text-[13px] text-zinc-500 mb-3">
@@ -96,6 +103,8 @@ export default function LoginPage() {
           />
 
         </div>
+
+        {/* PASSWORD */}
 
         <div className="mt-6">
 
@@ -115,6 +124,8 @@ export default function LoginPage() {
 
         </div>
 
+        {/* LOGIN BUTTON */}
+
         <button
           onClick={login}
           disabled={loading}
@@ -126,6 +137,8 @@ export default function LoginPage() {
               : "Access Infrastructure"
           }
         </button>
+
+        {/* FOOTER */}
 
         <div className="mt-8 text-center">
 
