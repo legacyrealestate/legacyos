@@ -5,12 +5,17 @@ export function middleware(request: Request) {
   const url =
     new URL(request.url);
 
+  const pathname =
+    url.pathname;
+
   /*
-    ALLOW LOGIN PAGE
+    ALLOW STATIC FILES
   */
 
   if (
-    url.pathname === "/login"
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/favicon.ico") ||
+    pathname.includes(".")
   ) {
 
     return NextResponse.next();
@@ -18,7 +23,19 @@ export function middleware(request: Request) {
   }
 
   /*
-    EVERYTHING ELSE
+    ALLOW LOGIN
+  */
+
+  if (
+    pathname === "/login"
+  ) {
+
+    return NextResponse.next();
+
+  }
+
+  /*
+    REDIRECT EVERYTHING ELSE
   */
 
   return NextResponse.redirect(
