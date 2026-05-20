@@ -386,32 +386,44 @@ export default function InboxPage() {
 
       {showReplyModal && (
 
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-6">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-6">
 
-          <div className="w-full max-w-2xl rounded-[34px] bg-white p-8">
+          <div className="w-full max-w-[720px] max-h-[82vh] overflow-hidden rounded-[28px] border border-black/[0.06] bg-white shadow-2xl">
 
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-black/[0.06]">
 
-              <h2 className="text-[28px] font-semibold">
-                AI Generated Reply
-              </h2>
+              <div>
+
+                <p className="uppercase tracking-[0.22em] text-zinc-400 text-[10px]">
+                  LegacyOS Communications
+                </p>
+
+                <h2 className="text-[22px] font-semibold tracking-tight mt-2">
+                  AI Generated Reply
+                </h2>
+
+              </div>
 
               <button
                 onClick={() =>
                   setShowReplyModal(false)
                 }
-                className="text-zinc-500"
+                className="h-[38px] px-4 rounded-xl border border-black/[0.06] text-[13px] text-zinc-600 hover:bg-zinc-100 transition"
               >
                 Close
               </button>
 
             </div>
 
-            <div className="rounded-[24px] border border-black/[0.06] bg-[#fafafa] p-6 mt-6">
+            <div className="overflow-y-auto max-h-[70vh] p-6">
 
-              <p className="text-zinc-700 whitespace-pre-wrap leading-relaxed">
-                {aiReply}
-              </p>
+              <div className="rounded-[22px] border border-black/[0.06] bg-[#fafafa] p-5">
+
+                <p className="text-zinc-700 whitespace-pre-wrap leading-[1.8] text-[14px]">
+                  {aiReply}
+                </p>
+
+              </div>
 
             </div>
 
