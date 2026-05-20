@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import AppShell from "@/app/components/AppShell";
 import useRealtime from "@/app/hooks/useRealtime";
 
+import { supabase } from "@/lib/supabase";
+
 export default function DashboardPage() {
 
   const [data, setData] =
@@ -71,6 +73,20 @@ export default function DashboardPage() {
 
     };
 
+  /*
+    LOGOUT
+  */
+
+  const logout =
+    async () => {
+
+      await supabase.auth.signOut();
+
+      window.location.href =
+        "/login";
+
+    };
+
   if (loading || !data) {
 
     return (
@@ -123,6 +139,13 @@ export default function DashboardPage() {
               className="h-[54px] px-6 rounded-2xl bg-black text-white text-[13px]"
             >
               Start Live Simulation
+            </button>
+
+            <button
+              onClick={logout}
+              className="h-[54px] px-6 rounded-2xl border border-black/[0.08] bg-[#fafafa] text-[13px]"
+            >
+              Logout
             </button>
 
             <div className="h-[54px] px-6 rounded-2xl border border-black/[0.08] bg-[#fafafa] text-[12px] flex items-center">
