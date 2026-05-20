@@ -23,26 +23,56 @@ export function middleware(request: Request) {
   }
 
   /*
-    ALLOW LOGIN
+    CHECK AUTH COOKIE
+  */
+
+  const hasAuth =
+    request.headers
+      .get("cookie")
+      ?.includes("sb-");
+
+  /*
+    ALLOW LOGIN PAGE
   */
 
   if (
     pathname === "/login"
   ) {
 
+    /*
+      already logged in
+    */
+
+    if (hasAuth) {
+
+      return NextResponse.redirect(
+        new URL(
+          "/",
+          request.url
+        )
+      );
+
+    }
+
     return NextResponse.next();
 
   }
 
   /*
-    REDIRECT EVERYTHING ELSE
+    NOT LOGGED IN
   */
 
-  return NextResponse.redirect(
-    new URL(
-      "/login",
-      request.url
-    )
-  );
+  if (!hasAuth) {
+
+    return NextResponse.redirect(
+      new URL(
+        "/login",
+        request.url
+      )
+    );
+
+  }
+
+  return NextResponse.next();
 
 }
