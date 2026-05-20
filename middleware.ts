@@ -37,14 +37,14 @@ export function middleware(
   }
 
   /*
-    CHECK FOR ANY SUPABASE SESSION COOKIE
+    CHECK FOR SUPABASE AUTH COOKIE
   */
 
-  const hasSupabaseSession =
+  const hasSession =
     request.cookies
       .getAll()
       .some((cookie) =>
-        cookie.name.startsWith("sb-")
+        cookie.name.includes("sb-")
       );
 
   /*
@@ -52,7 +52,7 @@ export function middleware(
   */
 
   if (
-    !hasSupabaseSession &&
+    !hasSession &&
     !isPublic
   ) {
 
@@ -70,7 +70,7 @@ export function middleware(
   */
 
   if (
-    hasSupabaseSession &&
+    hasSession &&
     pathname === "/login"
   ) {
 
