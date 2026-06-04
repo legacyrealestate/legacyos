@@ -1,179 +1,140 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
-
 import AppShell from "@/app/components/AppShell";
 
 export default function CommandPage() {
+  const [question, setQuestion] = useState("");
+  const [messages, setMessages] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const [prompt, setPrompt] =
-    useState("");
+  const askCommand = async () => {
+    if (!question.trim()) return;
 
-  const [messages, setMessages] =
-    useState<any[]>([
+    const currentQuestion = question;
+    setQuestion("");
+
+    setMessages((prev) => [
+      ...prev,
       {
-        role: "assistant",
-        content:
-          "Good morning. LegacyOS is monitoring 36 active properties, 3 unresolved maintenance escalations, and 2 high-risk operational alerts. HVAC response times remain stable overall, though vendor capacity is tightening across Antioch and downtown Nashville.",
+        role: "user",
+        content: currentQuestion,
       },
     ]);
 
-  const [loading, setLoading] =
-    useState(false);
+    setLoading(true);
 
-  const sendMessage =
-    async () => {
+    try {
+      const res = await fetch("/api/command", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          question: currentQuestion,
+        }),
+      });
 
-      if (!prompt) return;
-
-      const userMessage = {
-        role: "user",
-        content: prompt,
-      };
+      const data = await res.json();
 
       setMessages((prev) => [
         ...prev,
-        userMessage,
+        {
+          role: "assistant",
+          content: data.answer || "No response generated.",
+        },
       ]);
+    } catch (error) {
+      console.error(error);
 
-      setPrompt("");
-      setLoading(true);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "Command Center could not process that request.",
+        },
+      ]);
+    }
 
-      try {
-
-        const res =
-          await fetch(
-            "/api/command",
-            {
-              method: "POST",
-              headers: {
-                "Content-Type":
-                  "application/json",
-              },
-              body: JSON.stringify({
-                prompt:
-                  userMessage.content,
-              }),
-            }
-          );
-
-        const data =
-          await res.json();
-
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: "assistant",
-            content:
-              data.reply,
-          },
-        ]);
-
-      } catch (error) {
-
-        console.error(error);
-
-      }
-
-      setLoading(false);
-
-    };
+    setLoading(false);
+  };
 
   return (
     <AppShell>
-
-      {/* HERO */}
-
       <div className="rounded-[40px] border border-black/[0.06] bg-white p-10">
-
         <p className="uppercase tracking-[0.28em] text-zinc-400 text-[11px]">
-          Autonomous Operational Intelligence
+          LegacyOS Command Center
         </p>
 
-        <h1 className="text-[56px] font-semibold tracking-tight mt-5">
-          Chat with LegacyOS
+        <h1 className="text-[38px] md:text-[56px] font-semibold tracking-tight mt-5">
+          Command
         </h1>
 
         <p className="text-zinc-500 text-[15px] leading-relaxed mt-5 max-w-3xl">
-          Operational command interface for
-          maintenance infrastructure, property
-          intelligence, vendor coordination,
-          escalations, and AI-driven workflow
-          orchestration.
+          Ask LegacyOS what is happening across calls, vendors, maintenance,
+          tickets, dispatching, and operational memory.
         </p>
-
       </div>
 
-      {/* CHAT */}
+      <div className="rounded-[36px] border border-black/[0.06] bg-white p-6 mt-8 min-h-[500px] flex flex-col">
+        <div className="flex-1 space-y-5 overflow-y-auto">
+          {messages.length === 0 && (
+            <div className="rounded-[28px] bg-[#fafafa] border border-black/[0.06] p-8">
+              <h2 className="text-[26px] font-semibold">
+                Ask LegacyOS anything.
+              </h2>
 
-      <div className="rounded-[36px] border border-black/[0.06] bg-white p-8 mt-8">
-
-        <div className="space-y-5 max-h-[620px] overflow-y-auto">
-
-          {messages.map(
-            (message, index) => (
-
-              <div
-                key={index}
-                className={`rounded-[30px] p-6 ${
-                  message.role ===
-                  "user"
-                    ? "bg-black text-white ml-auto max-w-[70%]"
-                    : "bg-[#f5f5f7] max-w-[78%]"
-                }`}
-              >
-
-                <p className="text-[14px] leading-relaxed whitespace-pre-wrap">
-                  {
-                    message.content
-                  }
-                </p>
-
-              </div>
-
-            )
+              <p className="text-zinc-500 text-[14px] mt-4">
+                Example: “Who was dispatched for the water leak?” or “What
+                emergency tickets are open right now?”
+              </p>
+            </div>
           )}
+
+          {messages.map((message, index) => (
+            <div
+              key={index}
+              className={
+                message.role === "user"
+                  ? "rounded-[24px] bg-black text-white p-5 ml-auto max-w-2xl"
+                  : "rounded-[24px] bg-[#fafafa] border border-black/[0.06] p-5 max-w-3xl"
+              }
+            >
+              <p className="text-[14px] leading-relaxed whitespace-pre-wrap">
+                {message.content}
+              </p>
+            </div>
+          ))}
 
           {loading && (
-
-            <div className="rounded-[30px] bg-[#f5f5f7] p-6 max-w-[260px]">
-
-              <p className="text-[14px] text-zinc-500">
-                LegacyOS analyzing infrastructure...
+            <div className="rounded-[24px] bg-[#fafafa] border border-black/[0.06] p-5 max-w-3xl">
+              <p className="text-zinc-500 text-[14px]">
+                LegacyOS is analyzing operations...
               </p>
-
             </div>
-
           )}
-
         </div>
 
-        {/* INPUT */}
-
-        <div className="flex gap-4 mt-8">
-
+        <div className="flex gap-3 mt-6">
           <input
-            value={prompt}
-            onChange={(e) =>
-              setPrompt(
-                e.target.value
-              )
-            }
-            placeholder="Ask LegacyOS about operations..."
-            className="flex-1 h-[62px] rounded-2xl border border-black/[0.06] px-6 outline-none text-[14px]"
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") askCommand();
+            }}
+            placeholder="Ask about tickets, vendors, dispatches, emergencies..."
+            className="flex-1 h-[56px] rounded-2xl border border-black/[0.08] bg-[#fafafa] px-5 text-[14px] outline-none"
           />
 
           <button
-            onClick={sendMessage}
-            className="h-[62px] px-8 rounded-2xl bg-black text-white text-[14px] font-medium"
+            onClick={askCommand}
+            disabled={loading}
+            className="h-[56px] px-7 rounded-2xl bg-black text-white text-[14px] disabled:opacity-50"
           >
-            Send
+            Ask
           </button>
-
         </div>
-
       </div>
-
     </AppShell>
   );
 }

@@ -1,3 +1,5 @@
+﻿export const runtime = "nodejs";
+
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
@@ -7,13 +9,11 @@ const supabase = createClient(
 );
 
 export async function GET() {
-
   const { data, error } = await supabase
     .from("vendors")
     .select("*")
-    .order("created_at", {
-      ascending: false,
-    });
+    .order("trade", { ascending: true })
+    .order("name", { ascending: true });
 
   if (error) {
     return NextResponse.json(
@@ -26,7 +26,6 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-
   const body = await req.json();
 
   const { data, error } = await supabase
