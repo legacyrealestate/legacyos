@@ -1,374 +1,100 @@
-"use client";
-
-import { useEffect, useState } from "react";
+﻿"use client";
 
 import AppShell from "@/app/components/AppShell";
-import useRealtime from "@/app/hooks/useRealtime";
+import Link from "next/link";
 
-import { supabase } from "@/lib/supabase";
+const workflows = [
+  {
+    title: "Leads",
+    description: "Recommend homes, explain application cost, send application link, schedule showings.",
+    href: "/leads",
+    items: ["Available homes", "Coming soon listings", "$55 application / $30 Waverly", "Showing scheduling"]
+  },
+  {
+    title: "Residents",
+    description: "Answer resident requests, create tasks, send ledgers, leases, move-out info, and password reset help.",
+    href: "/residents",
+    items: ["Maintenance intake", "Balance owed", "Resident ledger", "Lease / move-out procedure"]
+  },
+  {
+    title: "Owners",
+    description: "Send owner statements and keep owner requests organized.",
+    href: "/owners",
+    items: ["Owner statement", "Owner request tracking"]
+  },
+  {
+    title: "Documents",
+    description: "Central place for leases, HOA docs, move-out notices, procedures, and templates.",
+    href: "/documents",
+    items: ["Leases", "HOA docs", "Move-out notices", "Qualification standards"]
+  }
+];
 
 export default function DashboardPage() {
-
-  const [data, setData] =
-    useState<any>(null);
-
-  const [loading, setLoading] =
-    useState(true);
-
-  const loadDashboard =
-    async () => {
-
-      try {
-
-        const res =
-          await fetch(
-            "/api/dashboard"
-          );
-
-        const dashboard =
-          await res.json();
-
-        setData(dashboard);
-
-      } catch (error) {
-
-        console.error(error);
-
-      }
-
-      setLoading(false);
-
-    };
-
-  useEffect(() => {
-
-    loadDashboard();
-
-  }, []);
-
-  useRealtime(
-    "maintenance_tickets",
-    loadDashboard
-  );
-
-  useRealtime(
-    "notifications",
-    loadDashboard
-  );
-
-  useRealtime(
-    "operations_feed",
-    loadDashboard
-  );
-
-  const startSimulation =
-    async () => {
-
-      await fetch(
-        "/api/simulate",
-        {
-          method: "POST",
-        }
-      );
-
-    };
-
-  /*
-    LOGOUT
-  */
-
-  const logout =
-    async () => {
-
-      await supabase.auth.signOut();
-
-      window.location.href =
-        "/login";
-
-    };
-
-  if (loading || !data) {
-
-    return (
-      <AppShell>
-
-        <div className="rounded-[40px] border border-black/[0.06] bg-white p-10">
-
-          <p className="text-zinc-500">
-            Loading operational intelligence...
-          </p>
-
-        </div>
-
-      </AppShell>
-    );
-  }
-
   return (
     <AppShell>
+      <section className="rounded-[40px] border border-black/[0.06] bg-white p-8 md:p-10">
+        <p className="uppercase tracking-[0.28em] text-zinc-400 text-[11px]">
+          Client Handoff Version
+        </p>
 
-      <div className="rounded-[42px] border border-black/[0.06] bg-white p-10">
+        <h1 className="text-[38px] md:text-[58px] font-semibold tracking-tight mt-5">
+          LegacyOS
+        </h1>
 
-        <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-8">
+        <p className="text-zinc-500 text-[15px] leading-relaxed mt-5 max-w-3xl">
+          Built for Legacy Real Estate Group to manage lead questions, resident requests,
+          owner statements, maintenance intake, documents, and AI-powered email responses.
+        </p>
 
-          <div>
+        <div className="flex flex-wrap gap-4 mt-8">
+          <Link href="/inbox" className="h-[52px] px-6 rounded-2xl bg-black text-white text-[14px] flex items-center">
+            Open AI Inbox
+          </Link>
+          <Link href="/maintenance" className="h-[52px] px-6 rounded-2xl border border-black/[0.08] bg-[#fafafa] text-[14px] flex items-center">
+            View Maintenance
+          </Link>
+        </div>
+      </section>
 
-            <p className="uppercase tracking-[0.28em] text-zinc-400 text-[11px]">
-              Autonomous Infrastructure
+      <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 mt-8">
+        <Metric title="Lead Workflows" value="4" />
+        <Metric title="Resident Workflows" value="8" />
+        <Metric title="Owner Workflows" value="1" />
+        <Metric title="Launch Focus" value="Today" />
+      </section>
+
+      <section className="grid grid-cols-1 xl:grid-cols-2 gap-6 mt-8">
+        {workflows.map((workflow) => (
+          <Link key={workflow.title} href={workflow.href} className="rounded-[34px] border border-black/[0.06] bg-white p-8 hover:-translate-y-1 transition">
+            <p className="uppercase tracking-[0.24em] text-zinc-400 text-[10px]">
+              Workflow
             </p>
-
-            <h1 className="text-[38px] md:text-[64px] font-semibold tracking-tight mt-5">
-              LegacyOS
-            </h1>
-
-            <p className="text-zinc-500 text-[16px] leading-relaxed mt-5 max-w-3xl">
-              AI-powered operational intelligence
-              system for maintenance, escalations,
-              property infrastructure, vendor
-              coordination, and tenant workflows.
+            <h2 className="text-[30px] font-semibold tracking-tight mt-4">
+              {workflow.title}
+            </h2>
+            <p className="text-zinc-500 text-[14px] leading-relaxed mt-3">
+              {workflow.description}
             </p>
-
-          </div>
-
-          <div className="flex flex-wrap gap-4">
-
-            <button
-              onClick={
-                startSimulation
-              }
-              className="h-[54px] px-6 rounded-2xl bg-black text-white text-[13px]"
-            >
-              Start Live Simulation
-            </button>
-
-            <button
-              onClick={logout}
-              className="h-[54px] px-6 rounded-2xl border border-black/[0.08] bg-[#fafafa] text-[13px]"
-            >
-              Logout
-            </button>
-
-            <div className="h-[54px] px-6 rounded-2xl border border-black/[0.08] bg-[#fafafa] text-[12px] flex items-center">
-              LIVE SYSTEMS
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-6">
+              {workflow.items.map((item) => (
+                <div key={item} className="rounded-2xl bg-[#fafafa] border border-black/[0.06] p-4 text-sm text-zinc-700">
+                  {item}
+                </div>
+              ))}
             </div>
-
-          </div>
-
-        </div>
-
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-5 mt-8">
-
-        <MetricCard
-          title="Calls"
-          value={
-            data.metrics.totalCalls
-          }
-        />
-
-        <MetricCard
-          title="Emergencies"
-          value={
-            data.metrics.emergencies
-          }
-        />
-
-        <MetricCard
-          title="Escalated"
-          value={
-            data.metrics.escalated
-          }
-        />
-
-        <MetricCard
-          title="Vendors"
-          value={
-            data.metrics.vendors
-          }
-        />
-
-        <MetricCard
-          title="Properties"
-          value={
-            data.metrics.properties
-          }
-        />
-
-        <MetricCard
-          title="Alerts"
-          value={
-            data.metrics
-              .notifications
-          }
-        />
-
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mt-8">
-
-        <div className="rounded-[36px] border border-black/[0.06] bg-white p-8">
-
-          <div className="flex items-center justify-between">
-
-            <div>
-
-              <p className="uppercase tracking-[0.24em] text-zinc-400 text-[10px]">
-                Live Operations
-              </p>
-
-              <h2 className="text-[32px] font-semibold tracking-tight mt-4">
-                Operations Feed
-              </h2>
-
-            </div>
-
-            <div className="h-[34px] px-4 rounded-full bg-black text-white text-[10px] flex items-center">
-              LIVE
-            </div>
-
-          </div>
-
-          <div className="space-y-4 mt-8">
-
-            {data.operations
-              ?.slice(0, 6)
-              ?.map(
-                (
-                  item: any,
-                  index: number
-                ) => (
-
-                  <div
-                    key={index}
-                    className="rounded-[24px] border border-black/[0.06] bg-[#fafafa] p-5"
-                  >
-
-                    <div className="flex items-center justify-between gap-4">
-
-                      <h3 className="text-[15px] font-medium">
-                        {
-                          item.title
-                        }
-                      </h3>
-
-                      <div className="h-[28px] px-3 rounded-full bg-black text-white text-[10px] flex items-center">
-                        {
-                          item.type
-                        }
-                      </div>
-
-                    </div>
-
-                    <p className="text-zinc-500 text-[13px] leading-relaxed mt-4">
-                      {
-                        item.description
-                      }
-                    </p>
-
-                  </div>
-
-                )
-              )}
-
-          </div>
-
-        </div>
-
-        <div className="rounded-[36px] border border-black/[0.06] bg-white p-8">
-
-          <p className="uppercase tracking-[0.24em] text-zinc-400 text-[10px]">
-            Autonomous Systems
-          </p>
-
-          <h2 className="text-[32px] font-semibold tracking-tight mt-4">
-            AI Infrastructure
-          </h2>
-
-          <div className="space-y-4 mt-8">
-
-            <SystemCard
-              title="Operational AI"
-              status="Analyzing"
-            />
-
-            <SystemCard
-              title="Realtime Sync"
-              status="Live"
-            />
-
-            <SystemCard
-              title="Voice Infrastructure"
-              status="Online"
-            />
-
-            <SystemCard
-              title="Vendor Routing"
-              status="Connected"
-            />
-
-            <SystemCard
-              title="Escalation Engine"
-              status="Autonomous"
-            />
-
-            <SystemCard
-              title="Risk Monitoring"
-              status="Active"
-            />
-
-          </div>
-
-        </div>
-
-      </div>
-
+          </Link>
+        ))}
+      </section>
     </AppShell>
   );
 }
 
-function MetricCard({
-  title,
-  value,
-}: {
-  title: string;
-  value: number;
-}) {
-
+function Metric({ title, value }: { title: string; value: string }) {
   return (
     <div className="rounded-[30px] border border-black/[0.06] bg-white p-7">
-
-      <p className="uppercase tracking-[0.24em] text-zinc-400 text-[10px]">
-        {title}
-      </p>
-
-      <h2 className="text-[42px] font-semibold tracking-tight mt-5">
-        {value}
-      </h2>
-
-    </div>
-  );
-}
-
-function SystemCard({
-  title,
-  status,
-}: {
-  title: string;
-  status: string;
-}) {
-
-  return (
-    <div className="rounded-[24px] border border-black/[0.06] bg-[#fafafa] p-5 flex items-center justify-between">
-
-      <p className="text-[14px]">
-        {title}
-      </p>
-
-      <div className="h-[30px] px-4 rounded-full bg-black text-white text-[10px] flex items-center">
-        {status}
-      </div>
-
+      <p className="uppercase tracking-[0.24em] text-zinc-400 text-[10px]">{title}</p>
+      <h2 className="text-[36px] font-semibold tracking-tight mt-5">{value}</h2>
     </div>
   );
 }
