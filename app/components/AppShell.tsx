@@ -28,6 +28,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     { label: "Owners", href: "/owners", icon: Building2 },
     { label: "Maintenance", href: "/maintenance", icon: Wrench },
     { label: "Documents", href: "/documents", icon: FileText },
+    { label: "Roadmap", href: "/roadmap", icon: FileText },
     { label: "Settings", href: "/settings", icon: Settings }
   ];
 
@@ -90,3 +91,4 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+
