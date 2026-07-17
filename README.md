@@ -1,36 +1,47 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# LegacyOS
 
-## Getting Started
+LegacyOS is the supervised operations backend for Legacy Real Estate Group. The pilot focuses on maintenance intake, ticket review, human-approved vendor notification, resident/vendor updates, private documents, and operational activity tracking.
 
-First, run the development server:
+## Architecture
+
+- Twilio owns the phone number and SMS transport.
+- ElevenLabs handles inbound voice and sends post-call transcription webhooks to LegacyOS.
+- LegacyOS verifies provider webhooks, stores tickets and activity in Supabase, and presents staff review workflows.
+- Supabase Auth is the only staff authentication system.
+- Supabase service-role access is restricted to trusted server route handlers.
+
+Inbound voice URL in ElevenLabs:
+
+```text
+https://legacynashvilleos.space/api/elevenlabs
+```
+
+## Local Setup
+
+1. Install dependencies:
+
+```bash
+npm install
+```
+
+2. Create `.env.local` from `.env.example` and fill values locally.
+3. Run the app:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+4. Run checks:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run lint
+npm run test
+npx tsc --noEmit
+npm run build
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Safety Defaults
 
-## Learn More
+`ENABLE_OUTBOUND_COMMUNICATIONS` defaults to disabled unless it is exactly `true`. When disabled, SMS requests return a preview result and do not contact Twilio.
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The legacy Twilio voice route is intentionally obsolete. Twilio should not be configured to answer inbound voice through LegacyOS.

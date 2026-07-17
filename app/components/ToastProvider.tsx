@@ -6,7 +6,10 @@ import { realtime } from "@/lib/realtime";
 export default function ToastProvider() {
 
   const [toast, setToast] =
-    useState<any>(null);
+    useState<{
+      title?: string;
+      description?: string;
+    } | null>(null);
 
   useEffect(() => {
 

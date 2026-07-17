@@ -1,10 +1,43 @@
 "use client";
 
+import { useState } from "react";
+
 export default function NotificationDrawer({
   open,
   onClose,
   notifications,
-}: any) {
+  onAcknowledged,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onAcknowledged?: () => void;
+  notifications?: Array<{
+    id?: string;
+    title?: string;
+    description?: string;
+    type?: string;
+    acknowledged_at?: string | null;
+  }>;
+}) {
+  const [acknowledgingId, setAcknowledgingId] = useState<string | null>(null);
+  const [acknowledgedIds, setAcknowledgedIds] = useState<Set<string>>(new Set());
+
+  async function acknowledge(notificationId?: string) {
+    if (!notificationId) return;
+    setAcknowledgingId(notificationId);
+
+    const res = await fetch("/api/notifications", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ notificationId }),
+    });
+
+    if (res.ok) {
+      setAcknowledgedIds((current) => new Set([...current, notificationId]));
+      onAcknowledged?.();
+    }
+    setAcknowledgingId(null);
+  }
 
   return (
     <div
@@ -42,14 +75,15 @@ export default function NotificationDrawer({
 
         <div className="space-y-4 mt-8">
 
-          {notifications?.map(
-            (
-              notification: any,
-              index: number
-            ) => (
+          {notifications?.map((notification, index) => {
+            const acknowledged =
+              Boolean(notification.acknowledged_at) ||
+              (notification.id ? acknowledgedIds.has(notification.id) : false);
+
+            return (
 
               <div
-                key={index}
+                key={notification.id || index}
                 className="rounded-[28px] border border-black/[0.06] bg-[#fafafa] p-6 hover:scale-[1.02] transition-all duration-300 ease-out"
               >
 
@@ -62,7 +96,7 @@ export default function NotificationDrawer({
                   </h3>
 
                   <div className="h-[28px] px-3 rounded-full bg-black text-white text-[10px] flex items-center">
-                    LIVE
+                    {acknowledged ? "ACK" : notification.type === "emergency" ? "ACTION" : "LIVE"}
                   </div>
 
                 </div>
@@ -73,10 +107,20 @@ export default function NotificationDrawer({
                   }
                 </p>
 
+                {notification.type === "emergency" && !acknowledged && (
+                  <button
+                    onClick={() => acknowledge(notification.id)}
+                    disabled={acknowledgingId === notification.id}
+                    className="mt-5 h-[40px] px-4 rounded-2xl bg-black text-white text-[12px] disabled:opacity-50"
+                  >
+                    {acknowledgingId === notification.id ? "Acknowledging..." : "Acknowledge"}
+                  </button>
+                )}
+
               </div>
 
-            )
-          )}
+            );
+          })}
 
         </div>
 

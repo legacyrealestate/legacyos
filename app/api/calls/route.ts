@@ -1,287 +1,93 @@
 export const runtime = "nodejs";
 
-import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { ApiError, apiError, apiJson } from "@/lib/security/api";
+import { requireUser } from "@/lib/security/auth";
+import {
+  assertE164,
+  assertOptionalString,
+  assertString,
+  safeJsonObject,
+} from "@/lib/security/validation";
+import { createServiceSupabaseClient } from "@/lib/supabase/server";
 
 export async function GET() {
-
   try {
+    await requireUser();
+    const supabase = createServiceSupabaseClient();
+    const { data, error } = await supabase
+      .from("maintenance_tickets")
+      .select("*")
+      .order("created_at", { ascending: false });
 
-    const { data, error } =
-      await supabase
-        .from("maintenance_tickets")
-        .select("*")
-        .order("created_at", {
-          ascending: false,
-        });
-
-    if (error) {
-
-      console.error(
-        "GET ERROR:",
-        error
-      );
-
-      return NextResponse.json(
-        {
-          error: error.message,
-        },
-        {
-          status: 500,
-        }
-      );
-
-    }
-
-    return NextResponse.json(data);
-
-  } catch (e) {
-
-    console.error(
-      "GET ROUTE ERROR:",
-      e
-    );
-
-    return NextResponse.json(
-      {
-        error:
-          "Failed to fetch calls",
-      },
-      {
-        status: 500,
-      }
-    );
-
+    if (error) throw new ApiError("server_error", error.message);
+    return apiJson(data || []);
+  } catch (error) {
+    return apiError(error);
   }
-
 }
 
-export async function POST(
-  req: Request
-) {
-
+export async function POST(req: Request) {
   try {
-
-    const body =
-      await req.json();
-
-    console.log(
-      "FULL WEBHOOK BODY:",
-      JSON.stringify(
-        body,
-        null,
-        2
-      )
-    );
+    const auth = await requireUser();
+    const body = safeJsonObject(await req.json());
+    const supabase = createServiceSupabaseClient();
 
     const payload = {
-
-      tenant_name:
-        body.caller_name ||
-        body.name ||
-        "Unknown Caller",
-
-      phone:
-        body.phone ||
-        body.phone_number ||
-        "Unknown",
-
-      issue:
-        body.issue ||
-        body.summary ||
-        "No issue provided",
-
-      urgency:
-        body.urgency ||
-        body.priority ||
-        "Normal",
-
-      ai_summary:
-        body.ai_summary ||
-        body.summary ||
-        "No AI summary",
-
-      transcript:
-        typeof body.transcript ===
-        "string"
-          ? body.transcript
-          : JSON.stringify(
-              body.transcript ||
-                body,
-              null,
-              2
-            ),
-
-      status: "Open",
-
+      tenant_name: assertString(body.residentName, "resident name", 120),
+      phone: assertE164(body.phone, "phone"),
+      property: assertString(body.property, "property/address", 250),
+      unit: assertOptionalString(body.unit, "unit", 50),
+      issue_category: assertString(body.issueCategory, "issue category", 120),
+      issue: assertString(body.issueDetails, "issue details", 2000),
+      urgency: assertString(body.urgency, "urgency", 40),
+      permission_to_enter: assertString(body.permissionToEnter, "permission to enter", 120),
+      status: "Needs Review",
+      source: "staff_form",
+      created_by: auth.user.id,
+      updated_by: auth.user.id,
     };
 
-    console.log(
-      "INSERT PAYLOAD:",
-      JSON.stringify(
-        payload,
-        null,
-        2
-      )
-    );
-
-    const {
-      data,
-      error,
-    } = await supabase
-      .from(
-        "maintenance_tickets"
-      )
+    const { data, error } = await supabase
+      .from("maintenance_tickets")
       .insert(payload)
       .select()
       .single();
 
-    if (error) {
+    if (error) throw new ApiError("server_error", error.message);
 
-      console.error(
-        "SUPABASE INSERT ERROR:",
-        error
-      );
+    const updates = await Promise.all([
+      supabase.from("ticket_updates").insert({
+        ticket_id: data.id,
+        type: "intake",
+        title: "Maintenance Request Created",
+        description: payload.issue,
+        created_by: auth.user.id,
+      }),
+      supabase.from("operations_feed").insert({
+        type: "maintenance_request",
+        title: `${payload.urgency} maintenance request`,
+        description: payload.issue,
+        related_ticket_id: data.id,
+        created_by: auth.user.id,
+      }),
+      ...(payload.urgency === "Emergency"
+        ? [
+            supabase.from("notifications").insert({
+              title: "Emergency Review Required",
+              description:
+                "Emergency maintenance intake was created. External emergency procedures remain required.",
+              type: "emergency",
+              related_ticket_id: data.id,
+            }),
+          ]
+        : []),
+    ]);
 
-      return NextResponse.json(
-        {
-          error:
-            error.message,
-        },
-        {
-          status: 500,
-        }
-      );
+    const failed = updates.find((result) => result.error);
+    if (failed?.error) throw new ApiError("server_error", failed.error.message);
 
-    }
-
-    /*
-      OPERATIONS FEED
-    */
-
-    const {
-      error:
-        operationsError,
-    } = await supabase
-      .from(
-        "operations_feed"
-      )
-      .insert({
-        type: "call",
-        title:
-          `${payload.urgency} Priority Call`,
-        description:
-          payload.issue,
-      });
-
-    if (
-      operationsError
-    ) {
-
-      console.error(
-        "OPERATIONS FEED ERROR:",
-        operationsError
-      );
-
-    }
-
-    /*
-      NOTIFICATIONS
-    */
-
-    const {
-      error:
-        notificationError,
-    } = await supabase
-      .from(
-        "notifications"
-      )
-      .insert({
-        title:
-          payload.urgency ===
-          "Emergency"
-            ? "Emergency Escalation"
-            : "New AI Call",
-
-        description:
-          payload.issue,
-      });
-
-    if (
-      notificationError
-    ) {
-
-      console.error(
-        "NOTIFICATION ERROR:",
-        notificationError
-      );
-
-    }
-
-    /*
-      EMERGENCY
-    */
-
-    if (
-      payload.urgency ===
-      "Emergency"
-    ) {
-
-      const {
-        error:
-          emergencyError,
-      } = await supabase
-        .from(
-          "operations_feed"
-        )
-        .insert({
-          type: "emergency",
-          title:
-            "Emergency Detected",
-          description:
-            payload.issue,
-        });
-
-      if (
-        emergencyError
-      ) {
-
-        console.error(
-          "EMERGENCY ERROR:",
-          emergencyError
-        );
-
-      }
-
-    }
-
-    return NextResponse.json({
-      success: true,
-      data,
-    });
-
-  } catch (e) {
-
-    console.error(
-      "POST ROUTE ERROR:",
-      e
-    );
-
-    return NextResponse.json(
-      {
-        error:
-          "Invalid request",
-      },
-      {
-        status: 400,
-      }
-    );
-
+    return apiJson({ success: true, data }, { status: 201 });
+  } catch (error) {
+    return apiError(error);
   }
-
 }

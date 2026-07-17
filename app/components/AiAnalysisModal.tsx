@@ -4,7 +4,26 @@ export default function AiAnalysisModal({
   open,
   onClose,
   data,
-}: any) {
+}: {
+  open: boolean;
+  onClose: () => void;
+  data?: {
+    urgency?: string;
+    ai_summary?: string;
+    analysis?: Partial<
+      Record<
+        | "urgency"
+        | "legalRisk"
+        | "severity"
+        | "tenantSentiment"
+        | "estimatedCost"
+        | "vendorRecommendation"
+        | "summary",
+        string
+      >
+    >;
+  };
+}) {
 
   if (!open) return null;
 
@@ -130,7 +149,10 @@ export default function AiAnalysisModal({
 function AnalysisCard({
   title,
   value,
-}: any) {
+}: {
+  title: string;
+  value: string;
+}) {
 
   return (
     <div className="rounded-[30px] border border-black/[0.06] bg-[#fafafa] p-7 hover:scale-[1.01] transition-all duration-300 ease-out">

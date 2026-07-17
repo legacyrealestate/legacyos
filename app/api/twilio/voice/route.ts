@@ -1,31 +1,20 @@
 import { NextResponse } from "next/server";
+import { apiError } from "@/lib/security/api";
+import { requireUser } from "@/lib/security/auth";
 
 export async function POST() {
-  const twiml = `
-    <?xml version="1.0" encoding="UTF-8"?>
-    <Response>
-      <Say voice="alice">
-        Hello. You have reached Legacy Property Group.
-        Our AI operations assistant is currently active.
-        Please briefly describe your maintenance issue after the tone.
-      </Say>
-
-      <Record
-        maxLength="120"
-        transcribe="true"
-        playBeep="true"
-      />
-
-      <Say voice="alice">
-        Thank you. Your request has been recorded and will be reviewed shortly.
-      </Say>
-    </Response>
-  `;
-
-  return new NextResponse(twiml, {
-    status: 200,
-    headers: {
-      "Content-Type": "text/xml",
-    },
-  });
+  try {
+    await requireUser();
+    return NextResponse.json(
+      {
+        success: false,
+        obsolete: true,
+        message:
+          "Inbound voice is handled by ElevenLabs. Do not configure Twilio voice webhooks to this route.",
+      },
+      { status: 410 }
+    );
+  } catch (error) {
+    return apiError(error);
+  }
 }

@@ -6,7 +6,15 @@ export default function EmailReplyModal({
   open,
   onClose,
   email,
-}: any) {
+}: {
+  open: boolean;
+  onClose: () => void;
+  email: {
+    category?: string;
+    subject?: string;
+    summary?: string;
+  };
+}) {
 
   const [loading, setLoading] =
     useState(false);
@@ -175,12 +183,6 @@ export default function EmailReplyModal({
                 className="h-[54px] px-6 rounded-2xl bg-black text-white text-[14px]"
               >
                 Copy Email
-              </button>
-
-              <button
-                className="h-[54px] px-6 rounded-2xl border border-black/[0.08] bg-white text-[14px]"
-              >
-                Send Email
               </button>
 
             </div>

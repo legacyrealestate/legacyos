@@ -19,13 +19,7 @@ export default function RealtimeProvider() {
             table:
               "maintenance_tickets",
           },
-          (payload) => {
-
-            console.log(
-              "Realtime Ticket:",
-              payload
-            );
-
+          () => {
             location.reload();
 
           }
@@ -45,13 +39,7 @@ export default function RealtimeProvider() {
             table:
               "notifications",
           },
-          (payload) => {
-
-            console.log(
-              "Realtime Notification:",
-              payload
-            );
-
+          () => {
             location.reload();
 
           }

@@ -1,100 +1,45 @@
-import { NextResponse } from "next/server";
-
-import { createClient } from "@supabase/supabase-js";
-
-const supabase =
-  createClient(
-    process.env
-      .NEXT_PUBLIC_SUPABASE_URL!,
-    process.env
-      .SUPABASE_SERVICE_ROLE_KEY!
-  );
+import { ApiError, apiError, apiJson } from "@/lib/security/api";
+import { requireUser } from "@/lib/security/auth";
+import { createServiceSupabaseClient } from "@/lib/supabase/server";
 
 export async function GET() {
+  try {
+    await requireUser();
+    const supabase = createServiceSupabaseClient();
 
-  const { data: calls } =
-    await supabase
-      .from(
-        "maintenance_tickets"
-      )
-      .select("*");
+    const [callsResult, vendorsResult, notificationsResult, operationsResult] =
+      await Promise.all([
+        supabase.from("maintenance_tickets").select("*"),
+        supabase.from("vendors").select("*").eq("active", true),
+        supabase.from("notifications").select("*"),
+        supabase
+          .from("operations_feed")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(6),
+      ]);
 
-  const { data: vendors } =
-    await supabase
-      .from("vendors")
-      .select("*");
+    for (const result of [callsResult, vendorsResult, notificationsResult, operationsResult]) {
+      if (result.error) throw new ApiError("server_error", result.error.message);
+    }
 
-  const {
-    data: properties,
-  } = await supabase
-    .from("properties")
-    .select("*");
+    const calls = callsResult.data || [];
+    const emergencyCount = calls.filter((call) => call.urgency === "Emergency").length;
+    const escalatedCount = calls.filter((call) => call.status?.includes("Escalated")).length;
 
-  const {
-    data: notifications,
-  } = await supabase
-    .from("notifications")
-    .select("*");
-
-  const {
-    data: operations,
-  } = await supabase
-    .from("operations_feed")
-    .select("*")
-    .order(
-      "created_at",
-      {
-        ascending: false,
-      }
-    )
-    .limit(6);
-
-  const emergencyCount =
-    calls?.filter(
-      (call) =>
-        call.urgency ===
-        "Emergency"
-    ).length || 0;
-
-  const escalatedCount =
-    calls?.filter(
-      (call) =>
-        call.status?.includes(
-          "Escalated"
-        )
-    ).length || 0;
-
-  return NextResponse.json({
-    metrics: {
-      totalCalls:
-        calls?.length || 0,
-
-      emergencies:
-        emergencyCount,
-
-      escalated:
-        escalatedCount,
-
-      vendors:
-        vendors?.length || 0,
-
-      properties:
-        properties?.length || 0,
-
-      notifications:
-        notifications?.length || 0,
-    },
-
-    operations:
-      operations || [],
-
-    vendors:
-      vendors || [],
-
-    properties:
-      properties || [],
-
-    calls:
-      calls || [],
-  });
+    return apiJson({
+      metrics: {
+        totalCalls: calls.length,
+        emergencies: emergencyCount,
+        escalated: escalatedCount,
+        vendors: vendorsResult.data?.length || 0,
+        notifications: notificationsResult.data?.length || 0,
+      },
+      operations: operationsResult.data || [],
+      vendors: vendorsResult.data || [],
+      calls,
+    });
+  } catch (error) {
+    return apiError(error);
+  }
 }

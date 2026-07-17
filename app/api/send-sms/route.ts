@@ -1,28 +1,12 @@
-﻿import { NextResponse } from "next/server";
-import { sendSMS } from "@/lib/communications/sms";
+import { apiError } from "@/lib/security/api";
+import { requireUser } from "@/lib/security/auth";
+import { unavailable } from "@/lib/security/unavailable";
 
-export async function POST(req: Request) {
+export async function POST() {
   try {
-    const body = await req.json();
-
-    const result = await sendSMS({
-      to: body.to,
-      body: body.message,
-    });
-
-    return NextResponse.json({
-      success: true,
-      result,
-    });
+    await requireUser();
+    return unavailable("arbitrary SMS sending");
   } catch (error) {
-    console.error("SMS ERROR:", error);
-
-    return NextResponse.json(
-      {
-        success: false,
-        error: String(error),
-      },
-      { status: 500 }
-    );
+    return apiError(error);
   }
 }

@@ -8,44 +8,73 @@ import OperationsTimeline from "@/app/components/OperationsTimeline";
 
 import useRealtime from "@/app/hooks/useRealtime";
 
+type Operation = {
+  id?: string;
+  title?: string;
+  type?: string;
+  description?: string;
+  created_at?: string;
+};
+
 export default function OperationsPage() {
 
   const [operations, setOperations] =
-    useState<any[]>([]);
+    useState<Operation[]>([]);
 
   const [loading, setLoading] =
     useState(true);
+  const [error, setError] =
+    useState("");
 
-  const loadOperations =
-    async () => {
+  async function loadOperations() {
+    const res =
+      await fetch(
+        "/api/operations"
+      );
 
-      try {
+    const data =
+      await res.json();
 
-        const res =
-          await fetch(
-            "/api/operations"
-          );
+    if (!res.ok) {
+      setError(data.error || "Unable to load operations.");
+    } else {
+      setOperations(
+        Array.isArray(data) ? data : []
+      );
+    }
 
-        const data =
-          await res.json();
+      setLoading(false);
+  }
 
-        setOperations(
-          data || []
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadInitialOperations() {
+      const res =
+        await fetch(
+          "/api/operations"
         );
 
-      } catch (error) {
+      const data =
+        await res.json();
 
-        console.error(error);
+      if (cancelled) return;
 
+      if (!res.ok) {
+        setError(data.error || "Unable to load operations.");
+      } else {
+        setOperations(
+          Array.isArray(data) ? data : []
+        );
       }
 
       setLoading(false);
+    }
 
+    loadInitialOperations();
+    return () => {
+      cancelled = true;
     };
-
-  useEffect(() => {
-
-    loadOperations();
 
   }, []);
 
@@ -74,11 +103,9 @@ export default function OperationsPage() {
             </h1>
 
             <p className="text-zinc-500 text-[15px] leading-relaxed mt-5 max-w-3xl">
-              Live autonomous operational events,
-              escalations,
-              workflows,
-              dispatches,
-              and infrastructure activity.
+              Chronological staff actions, webhook intake,
+              vendor approvals, document uploads, status
+              updates, and operational activity.
             </p>
 
           </div>
@@ -103,6 +130,12 @@ export default function OperationsPage() {
 
         </div>
 
+      )}
+
+      {error && (
+        <div className="rounded-[34px] border border-black/[0.06] bg-white p-10 mt-8">
+          <p className="text-red-700 text-[15px]">{error}</p>
+        </div>
       )}
 
       {/* EMPTY */}

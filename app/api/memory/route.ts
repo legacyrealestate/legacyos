@@ -1,31 +1,12 @@
-import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { apiError } from "@/lib/security/api";
+import { requireAdmin } from "@/lib/security/auth";
+import { unavailable } from "@/lib/security/unavailable";
 
 export async function GET() {
-
-  const { data: tenantMemory } =
-    await supabase
-      .from("tenant_memory")
-      .select("*");
-
-  const { data: propertyMemory } =
-    await supabase
-      .from("property_memory")
-      .select("*");
-
-  const { data: vendorMemory } =
-    await supabase
-      .from("vendor_memory")
-      .select("*");
-
-  return NextResponse.json({
-    tenantMemory,
-    propertyMemory,
-    vendorMemory,
-  });
+  try {
+    await requireAdmin();
+    return unavailable("memory tables");
+  } catch (error) {
+    return apiError(error);
+  }
 }

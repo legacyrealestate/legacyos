@@ -1,5 +1,8 @@
 export function shouldEscalate(
-  ticket: any
+  ticket: {
+    urgency?: string | null;
+    issue?: string | null;
+  }
 ) {
   if (
     ticket.urgency ===

@@ -1,10 +1,12 @@
-import { NextResponse } from "next/server";
+import { apiError } from "@/lib/security/api";
+import { requireUser } from "@/lib/security/auth";
+import { unavailable } from "@/lib/security/unavailable";
 
 export async function GET() {
-
-  return NextResponse.json({
-    success: true,
-    status: "Realtime engine active",
-  });
-
+  try {
+    await requireUser();
+    return unavailable("realtime engine status");
+  } catch (error) {
+    return apiError(error);
+  }
 }

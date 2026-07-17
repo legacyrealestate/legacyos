@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 import { createClient } from "@supabase/supabase-js";
 
@@ -13,6 +13,11 @@ export default function useRealtime(
   table: string,
   callback: () => void
 ) {
+  const callbackRef = useRef(callback);
+
+  useEffect(() => {
+    callbackRef.current = callback;
+  }, [callback]);
 
   useEffect(() => {
 
@@ -29,7 +34,7 @@ export default function useRealtime(
             table,
           },
           () => {
-            callback();
+            callbackRef.current();
           }
         )
         .subscribe();

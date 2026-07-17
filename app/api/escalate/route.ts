@@ -1,82 +1,24 @@
-import { NextResponse } from "next/server";
+import { ApiError, apiError, apiJson } from "@/lib/security/api";
+import { requireUser } from "@/lib/security/auth";
+import { assertUuid, safeJsonObject } from "@/lib/security/validation";
+import { createServiceSupabaseClient } from "@/lib/supabase/server";
 
-import { createClient } from "@supabase/supabase-js";
-
-const supabase =
-  createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-
-export async function POST(
-  req: Request
-) {
-
+export async function POST(req: Request) {
   try {
+    const auth = await requireUser();
+    const body = safeJsonObject(await req.json());
+    const ticketId = assertUuid(body.ticketId, "ticketId");
+    const supabase = createServiceSupabaseClient();
 
-    const body =
-      await req.json();
-
-    const ticketId =
-      body.ticketId;
-
-    await supabase
-      .from(
-        "maintenance_tickets"
-      )
-      .update({
-        status:
-          "Emergency Escalated",
-      })
-      .eq(
-        "id",
-        ticketId
-      );
-
-    await supabase
-      .from(
-        "operations_feed"
-      )
-      .insert({
-        type:
-          "emergency",
-
-        title:
-          "Emergency Escalation",
-
-        description:
-          "Ticket escalated by LegacyOS.",
-      });
-
-    await supabase
-      .from(
-        "notifications"
-      )
-      .insert({
-        title:
-          "Emergency Escalated",
-
-        description:
-          "Operations team notified.",
-      });
-
-    return NextResponse.json({
-      success: true,
+    const { error } = await supabase.rpc("escalate_ticket_emergency", {
+      ticket_id_input: ticketId,
+      actor_id_input: auth.user.id,
     });
 
+    if (error) throw new ApiError("server_error", error.message);
+
+    return apiJson({ success: true });
   } catch (error) {
-
-    console.error(error);
-
-    return NextResponse.json(
-      {
-        success: false,
-      },
-      {
-        status: 500,
-      }
-    );
-
+    return apiError(error);
   }
-
 }

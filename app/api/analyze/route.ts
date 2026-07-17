@@ -1,79 +1,12 @@
-import OpenAI from "openai";
-import { NextResponse } from "next/server";
+import { apiError } from "@/lib/security/api";
+import { requireAdmin } from "@/lib/security/auth";
+import { unavailable } from "@/lib/security/unavailable";
 
-const openai =
-  new OpenAI({
-    apiKey:
-      process.env
-        .OPENAI_API_KEY!,
-  });
-
-export async function POST(
-  req: Request
-) {
-
+export async function POST() {
   try {
-
-    const body =
-      await req.json();
-
-    const prompt = `
-Analyze this maintenance transcript.
-
-Determine:
-- urgency
-- tenant sentiment
-- legal risk
-- operational recommendations
-
-Transcript:
-${body.transcript}
-`;
-
-    const response =
-      await openai
-        .chat
-        .completions
-        .create({
-          model:
-            "gpt-4.1-mini",
-          messages: [
-            {
-              role:
-                "system",
-              content:
-                "You are an operational risk AI.",
-            },
-            {
-              role:
-                "user",
-              content:
-                prompt,
-            },
-          ],
-        });
-
-    return NextResponse.json({
-      analysis:
-        response
-          .choices[0]
-          .message
-          .content,
-    });
-
+    await requireAdmin();
+    return unavailable("AI transcript analysis");
   } catch (error) {
-
-    console.error(error);
-
-    return NextResponse.json(
-      {
-        error:
-          "AI analysis failed",
-      },
-      {
-        status: 500,
-      }
-    );
-
+    return apiError(error);
   }
 }

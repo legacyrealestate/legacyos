@@ -7,16 +7,6 @@ export default function UserCard() {
   const [email, setEmail] =
     useState("");
 
-  async function getUser() {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (user?.email) {
-      setEmail(user.email);
-    }
-  }
-
   async function logout() {
     await supabase.auth.signOut();
 
@@ -24,7 +14,22 @@ export default function UserCard() {
   }
 
   useEffect(() => {
-    getUser();
+    let cancelled = false;
+
+    async function loadUser() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!cancelled && user?.email) {
+        setEmail(user.email);
+      }
+    }
+
+    loadUser();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (

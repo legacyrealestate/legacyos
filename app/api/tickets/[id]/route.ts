@@ -1,53 +1,95 @@
-import { NextResponse } from "next/server";
+import { ApiError, apiError, apiJson } from "@/lib/security/api";
+import { requireUser } from "@/lib/security/auth";
+import {
+  STAFF_TICKET_STATUSES,
+  isStaffControlledTicketStatus,
+} from "@/lib/workflows/dispatch-state";
+import {
+  assertOptionalString,
+  assertUuid,
+  safeJsonObject,
+} from "@/lib/security/validation";
+import { createServiceSupabaseClient } from "@/lib/supabase/server";
 
-export async function GET(
-  req: Request,
-  context: {
-    params: Promise<{
-      id: string;
-    }>;
+type TicketContext = {
+  params: Promise<{ id: string }>;
+};
+
+export async function GET(_req: Request, context: TicketContext) {
+  try {
+    await requireUser();
+    const params = await context.params;
+    const ticketId = assertUuid(params.id);
+    const supabase = createServiceSupabaseClient();
+
+    const [ticketResult, updatesResult] = await Promise.all([
+      supabase.from("maintenance_tickets").select("*").eq("id", ticketId).single(),
+      supabase
+        .from("ticket_updates")
+        .select("*")
+        .eq("ticket_id", ticketId)
+        .order("created_at", { ascending: true }),
+    ]);
+
+    if (ticketResult.error) throw new ApiError("not_found", "Ticket not found.");
+    if (updatesResult.error) throw new ApiError("server_error", updatesResult.error.message);
+
+    return apiJson({
+      success: true,
+      ticket: ticketResult.data,
+      updates: updatesResult.data || [],
+    });
+  } catch (error) {
+    return apiError(error);
   }
-) {
-
-  const params =
-    await context.params;
-
-  return NextResponse.json({
-
-    success: true,
-
-    ticketId:
-      params.id,
-
-  });
-
 }
 
-export async function PATCH(
-  req: Request,
-  context: {
-    params: Promise<{
-      id: string;
-    }>;
+export async function PATCH(req: Request, context: TicketContext) {
+  try {
+    const auth = await requireUser();
+    const params = await context.params;
+    const ticketId = assertUuid(params.id);
+    const body = safeJsonObject(await req.json());
+    const action = typeof body.action === "string" ? body.action : "status_update";
+    const status = typeof body.status === "string" ? body.status : null;
+    const note = assertOptionalString(body.note, "note", 2000);
+    const supabase = createServiceSupabaseClient();
+
+    const nextStatus = status;
+
+    if (action === "manual_contact") {
+      if (!note) throw new ApiError("bad_request", "A staff note is required for manual vendor contact.");
+      const { data, error } = await supabase.rpc("record_manual_vendor_contact", {
+        ticket_id_input: ticketId,
+        actor_id_input: auth.user.id,
+        note_input: note,
+      });
+      if (error) throw new ApiError("server_error", error.message);
+      return apiJson({ success: true, ticket: data });
+    } else if (nextStatus === "Emergency Escalated") {
+      const { error } = await supabase.rpc("escalate_ticket_emergency", {
+        ticket_id_input: ticketId,
+        actor_id_input: auth.user.id,
+      });
+      if (error) throw new ApiError("server_error", error.message);
+      return apiJson({ success: true });
+    } else if (!nextStatus || !isStaffControlledTicketStatus(nextStatus)) {
+      throw new ApiError(
+        "bad_request",
+        `Staff status must be one of: ${STAFF_TICKET_STATUSES.join(", ")}.`
+      );
+    }
+
+    const { data, error } = await supabase.rpc("update_ticket_staff_status", {
+      ticket_id_input: ticketId,
+      actor_id_input: auth.user.id,
+      status_input: nextStatus,
+      note_input: note,
+    });
+    if (error) throw new ApiError("server_error", error.message);
+
+    return apiJson({ success: true, ticket: data });
+  } catch (error) {
+    return apiError(error);
   }
-) {
-
-  const params =
-    await context.params;
-
-  const body =
-    await req.json();
-
-  return NextResponse.json({
-
-    success: true,
-
-    ticketId:
-      params.id,
-
-    updated:
-      body,
-
-  });
-
 }

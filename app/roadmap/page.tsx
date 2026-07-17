@@ -3,22 +3,47 @@
 import AppShell from "@/app/components/AppShell";
 import { useEffect, useState } from "react";
 
-const categories = ["General", "Leasing", "Maintenance", "Residents", "Owners", "Documents", "Buildium", "AI", "SMS", "Email", "Reporting"];
+const categories = ["General", "Maintenance", "Vendors", "Documents", "Operations", "Roadmap"];
 const priorities = ["Low", "Medium", "High", "Urgent"];
 const statuses = ["Requested", "Approved", "In Progress", "Planned", "Completed", "On Hold"];
 
+type ClientRequest = {
+  id: string;
+  title: string;
+  description?: string | null;
+  category?: string | null;
+  priority?: string | null;
+  status?: string | null;
+  notes?: string | null;
+};
+
 export default function RoadmapPage() {
-  const [requests, setRequests] = useState<any[]>([]);
+  const [requests, setRequests] = useState<ClientRequest[]>([]);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   async function loadRequests() {
     const res = await fetch("/api/client-requests");
     const data = await res.json();
-    setRequests(data.requests || []);
+    if (!res.ok) setError(data.error || "Unable to load requests.");
+    else setRequests(data.requests || []);
   }
 
   useEffect(() => {
-    loadRequests();
+    let cancelled = false;
+
+    async function loadInitialRequests() {
+      const res = await fetch("/api/client-requests");
+      const data = await res.json();
+      if (cancelled) return;
+      if (!res.ok) setError(data.error || "Unable to load requests.");
+      else setRequests(data.requests || []);
+    }
+
+    loadInitialRequests();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   async function addRequest(e: React.FormEvent<HTMLFormElement>) {
@@ -28,7 +53,7 @@ export default function RoadmapPage() {
     const form = e.currentTarget;
     const formData = new FormData(form);
 
-    await fetch("/api/client-requests", {
+    const res = await fetch("/api/client-requests", {
       method: "POST",
       body: JSON.stringify({
         title: formData.get("title"),
@@ -41,9 +66,15 @@ export default function RoadmapPage() {
       }),
       headers: { "Content-Type": "application/json" },
     });
+    const data = await res.json();
+
+    setSaving(false);
+    if (!res.ok) {
+      setError(data.error || "Unable to save request.");
+      return;
+    }
 
     form.reset();
-    setSaving(false);
     loadRequests();
   }
 
@@ -88,6 +119,7 @@ export default function RoadmapPage() {
           <button disabled={saving} className="mt-6 h-[52px] w-full rounded-2xl bg-black text-white text-sm disabled:opacity-50">
             {saving ? "Saving..." : "Save Request"}
           </button>
+          {error && <p className="text-sm text-red-700 mt-4">{error}</p>}
         </form>
 
         <div className="rounded-[34px] border border-black/[0.06] bg-white p-8">

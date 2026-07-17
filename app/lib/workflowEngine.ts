@@ -1,8 +1,11 @@
 export async function runWorkflow(
-  ticket: any
+  ticket: {
+    urgency?: string | null;
+    issue?: string | null;
+  }
 ) {
 
-  const actions = [];
+  const actions: string[] = [];
 
   if (
     ticket.urgency ===
@@ -14,11 +17,7 @@ export async function runWorkflow(
     );
 
     actions.push(
-      "Vendor dispatch triggered"
-    );
-
-    actions.push(
-      "Operations notified"
+      "Staff emergency review required"
     );
 
     actions.push(

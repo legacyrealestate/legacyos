@@ -1,36 +1,12 @@
-import { NextResponse } from "next/server";
+import { apiError } from "@/lib/security/api";
+import { requireUser } from "@/lib/security/auth";
+import { unavailable } from "@/lib/security/unavailable";
 
 export async function GET() {
-
-  return NextResponse.json([
-    {
-      id: 1,
-      category: "Maintenance",
-      sender: "tenant@legacy.com",
-      subject: "Water leak in kitchen",
-      summary:
-        "Tenant reported active leak under sink requiring urgent maintenance attention.",
-      priority: "High",
-    },
-
-    {
-      id: 2,
-      category: "Leasing",
-      sender: "lead@email.com",
-      subject: "Interested in scheduling a tour",
-      summary:
-        "Potential renter interested in touring downtown property next week.",
-      priority: "Medium",
-    },
-
-    {
-      id: 3,
-      category: "Investor",
-      sender: "investor@email.com",
-      subject: "Multifamily acquisition opportunity",
-      summary:
-        "Investor requesting information regarding acquisition opportunities.",
-      priority: "Low",
-    },
-  ]);
+  try {
+    await requireUser();
+    return unavailable("email inbox");
+  } catch (error) {
+    return apiError(error);
+  }
 }

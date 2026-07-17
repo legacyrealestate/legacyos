@@ -1,29 +1,12 @@
-import { NextResponse } from "next/server";
-
-import { createClient } from "@supabase/supabase-js";
-
-const supabase =
-  createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
+import { apiError } from "@/lib/security/api";
+import { requireUser } from "@/lib/security/auth";
+import { unavailable } from "@/lib/security/unavailable";
 
 export async function GET() {
-
-  const { data } =
-    await supabase
-      .from(
-        "leasing_leads"
-      )
-      .select("*")
-      .order(
-        "created_at",
-        {
-          ascending: false,
-        }
-      );
-
-  return NextResponse.json(
-    data || []
-  );
+  try {
+    await requireUser();
+    return unavailable("leasing leads");
+  } catch (error) {
+    return apiError(error);
+  }
 }

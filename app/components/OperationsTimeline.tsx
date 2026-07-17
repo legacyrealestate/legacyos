@@ -2,19 +2,23 @@
 
 export default function OperationsTimeline({
   operations,
-}: any) {
+}: {
+  operations?: Array<{
+    id?: string;
+    title?: string;
+    type?: string;
+    description?: string;
+    created_at?: string;
+  }>;
+}) {
 
   return (
     <div className="space-y-6">
 
-      {operations?.map(
-        (
-          operation: any,
-          index: number
-        ) => (
+      {operations?.map((operation, index) => (
 
           <div
-            key={index}
+            key={operation.id || index}
             className="flex gap-5"
           >
 
@@ -54,9 +58,9 @@ export default function OperationsTimeline({
 
                 <p className="text-zinc-400 text-[11px] mt-5">
                   {
-                    new Date(
-                      operation.created_at
-                    ).toLocaleTimeString()
+                    operation.created_at
+                      ? new Date(operation.created_at).toLocaleTimeString()
+                      : "Time unavailable"
                   }
                 </p>
 
@@ -66,8 +70,7 @@ export default function OperationsTimeline({
 
           </div>
 
-        )
-      )}
+      ))}
 
     </div>
   );

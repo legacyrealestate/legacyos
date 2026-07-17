@@ -1,29 +1,19 @@
-import { NextResponse } from "next/server";
-
-import { createClient } from "@supabase/supabase-js";
-
-const supabase =
-  createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
+import { ApiError, apiError, apiJson } from "@/lib/security/api";
+import { requireUser } from "@/lib/security/auth";
+import { createServiceSupabaseClient } from "@/lib/supabase/server";
 
 export async function GET() {
-
-  const { data } =
-    await supabase
-      .from(
-        "operations_feed"
-      )
+  try {
+    await requireUser();
+    const supabase = createServiceSupabaseClient();
+    const { data, error } = await supabase
+      .from("operations_feed")
       .select("*")
-      .order(
-        "created_at",
-        {
-          ascending: false,
-        }
-      );
+      .order("created_at", { ascending: false });
 
-  return NextResponse.json(
-    data || []
-  );
+    if (error) throw new ApiError("server_error", error.message);
+    return apiJson(data || []);
+  } catch (error) {
+    return apiError(error);
+  }
 }

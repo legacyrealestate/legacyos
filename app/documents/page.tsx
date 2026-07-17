@@ -14,21 +14,44 @@ const categories = [
   "Legal",
 ];
 
+type DocumentItem = {
+  name: string;
+  category: string;
+  path: string;
+  url?: string | null;
+};
+
 export default function DocumentsPage() {
-  const [documents, setDocuments] = useState<any[]>([]);
+  const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [category, setCategory] = useState("Residents");
   const [search, setSearch] = useState("");
   const [uploading, setUploading] = useState(false);
-
-  async function loadDocuments() {
-    const res = await fetch("/api/documents");
-    const data = await res.json();
-    setDocuments(data.documents || []);
-  }
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    loadDocuments();
+    let cancelled = false;
+
+    async function loadInitialDocuments() {
+      const res = await fetch("/api/documents");
+      const data = await res.json();
+      if (cancelled) return;
+
+      if (!res.ok) setError(data.error || "Unable to load documents.");
+      else setDocuments(data.documents || []);
+    }
+
+    loadInitialDocuments();
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  async function refreshDocuments() {
+    const res = await fetch("/api/documents");
+    const data = await res.json();
+    if (!res.ok) setError(data.error || "Unable to load documents.");
+    else setDocuments(data.documents || []);
+  }
 
   async function uploadFile(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -44,14 +67,20 @@ export default function DocumentsPage() {
 
     setUploading(true);
 
-    await fetch("/api/documents", {
+    const res = await fetch("/api/documents", {
       method: "POST",
       body: formData,
     });
+    const data = await res.json();
 
     setUploading(false);
+    if (!res.ok) {
+      setError(data.error || "Unable to upload document.");
+      return;
+    }
+
     form.reset();
-    loadDocuments();
+    refreshDocuments();
   }
 
   const filtered = useMemo(() => {
@@ -108,6 +137,7 @@ export default function DocumentsPage() {
           >
             {uploading ? "Uploading..." : "Upload to Vault"}
           </button>
+          {error && <p className="text-sm text-red-700 mt-4">{error}</p>}
         </form>
 
         <div className="rounded-[34px] border border-black/[0.06] bg-white p-8">
