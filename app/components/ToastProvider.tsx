@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { realtime } from "@/lib/realtime";
+import { getRealtimeClient } from "@/lib/realtime";
 
 export default function ToastProvider() {
 
@@ -12,6 +12,12 @@ export default function ToastProvider() {
     } | null>(null);
 
   useEffect(() => {
+    let realtime;
+    try {
+      realtime = getRealtimeClient();
+    } catch {
+      return;
+    }
 
     const channel =
       realtime

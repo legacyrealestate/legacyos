@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
-  Inbox,
   Wrench,
   FileText,
   Users,
@@ -12,10 +11,17 @@ import {
   Settings,
   Menu,
   X,
-  Bell
+  Bell,
+  PhoneCall,
+  Bot,
+  Mail,
+  ContactRound,
+  Building2,
+  PlugZap,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import NotificationDrawer from "@/app/components/NotificationDrawer";
+import AlmaDock from "@/app/components/AlmaDock";
 
 type NotificationRecord = {
   id?: string;
@@ -74,11 +80,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const links = [
     { label: "Dashboard", href: "/", icon: LayoutDashboard },
-    { label: "Tickets", href: "/calls", icon: Inbox },
+    { label: "Phone CRM", href: "/calls", icon: PhoneCall },
+    { label: "Email", href: "/email", icon: Mail },
+    { label: "ALMA", href: "/ai", icon: Bot },
     { label: "Maintenance", href: "/maintenance", icon: Wrench },
+    { label: "Contacts", href: "/contacts", icon: ContactRound },
+    { label: "Properties", href: "/properties", icon: Building2 },
     { label: "Vendors", href: "/vendors", icon: Users },
     { label: "Documents", href: "/documents", icon: FileText },
     { label: "Operations", href: "/operations", icon: Home },
+    { label: "Integrations", href: "/integrations", icon: PlugZap },
     { label: "Roadmap", href: "/roadmap", icon: FileText },
     { label: "Settings", href: "/settings", icon: Settings }
   ];
@@ -127,7 +138,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             LegacyOS
           </h1>
           <p className="text-zinc-500 text-sm mt-3">
-            Supervised maintenance intake, ticket review, vendors, documents, and activity.
+            Autonomous calls, CRM, maintenance, email, vendors, and operations.
           </p>
         </div>
 
@@ -166,7 +177,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         notifications={notifications}
         onAcknowledged={loadNotifications}
       />
+      <AlmaDock />
     </div>
   );
 }
-

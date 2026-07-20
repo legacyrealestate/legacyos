@@ -1,11 +1,17 @@
 "use client";
 
 import { useEffect } from "react";
-import { realtime } from "@/lib/realtime";
+import { getRealtimeClient } from "@/lib/realtime";
 
 export default function RealtimeProvider() {
 
   useEffect(() => {
+    let realtime;
+    try {
+      realtime = getRealtimeClient();
+    } catch {
+      return;
+    }
 
     const ticketsChannel =
       realtime

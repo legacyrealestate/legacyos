@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { getSupabaseBrowserClient } from "@/lib/supabase";
 
 export default function LoginPage() {
 
@@ -13,12 +13,16 @@ export default function LoginPage() {
 
   const [loading, setLoading] =
     useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   const login = async () => {
 
     try {
 
       setLoading(true);
+      setErrorMessage("");
+
+      const supabase = getSupabaseBrowserClient();
 
       const { error } =
         await supabase.auth.signInWithPassword({
@@ -28,7 +32,7 @@ export default function LoginPage() {
 
       if (error) {
 
-        alert(error.message);
+        setErrorMessage(error.message);
 
         setLoading(false);
 
@@ -42,9 +46,7 @@ export default function LoginPage() {
 
       console.error(err);
 
-      alert(
-        "Authentication failed"
-      );
+      setErrorMessage(err instanceof Error ? err.message : "Authentication failed");
 
     }
 
@@ -116,6 +118,8 @@ export default function LoginPage() {
               : "Access Infrastructure"
           }
         </button>
+
+        {errorMessage && <p className="mt-4 rounded-2xl border border-red-100 bg-red-50 p-4 text-sm text-red-700">{errorMessage}</p>}
 
         <div className="mt-8 text-center">
 

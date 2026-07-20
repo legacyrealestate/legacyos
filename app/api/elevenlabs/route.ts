@@ -3,6 +3,8 @@ export const runtime = "nodejs";
 import { ApiError, apiError, apiJson } from "@/lib/security/api";
 import { getElevenLabsSignature, verifyElevenLabsSignature } from "@/lib/security/webhooks";
 import { createServiceSupabaseClient } from "@/lib/supabase/server";
+import { autonomyMode } from "@/lib/config/env";
+import { normalizeUrgency } from "@/lib/workflows/classification";
 
 type ElevenLabsTranscriptItem = {
   role?: string;
@@ -78,11 +80,19 @@ export function normalizePayload(payload: Record<string, unknown>) {
   const conversationId = firstString(data, [["conversation_id"], ["id"]]);
   const startUnixSecs = firstNumber(data, [["metadata", "start_time_unix_secs"]]);
   const durationSecs = firstNumber(data, [["metadata", "call_duration_secs"]]);
+  const rawUrgency =
+    firstString(collection, [["urgency", "value"], ["priority", "value"]]) ||
+    firstString(analysis, [["urgency"], ["priority"]]);
 
   return {
     eventType: firstString(payload, [["type"], ["event"], ["event_type"]]) || "post_call_transcription",
     conversationId,
     agentId: firstString(data, [["agent_id"], ["agent", "id"]]),
+    transportCallId: firstString(data, [
+      ["metadata", "phone_call", "call_sid"],
+      ["metadata", "phone_call", "twilio_call_sid"],
+      ["call_sid"],
+    ]),
     callerPhone: firstString(data, [
       ["metadata", "phone_call", "external_number"],
       ["metadata", "phone_call", "caller_number"],
@@ -90,6 +100,12 @@ export function normalizePayload(payload: Record<string, unknown>) {
       ["caller_number"],
       ["from"],
     ]),
+    toPhone: firstString(data, [
+      ["metadata", "phone_call", "agent_number"],
+      ["metadata", "phone_call", "called_number"],
+      ["to"],
+    ]),
+    direction: firstString(data, [["metadata", "phone_call", "direction"], ["direction"]]) || "inbound",
     transcript,
     summary:
       firstString(analysis, [["transcript_summary"], ["call_summary"], ["summary"]]) ||
@@ -108,10 +124,11 @@ export function normalizePayload(payload: Record<string, unknown>) {
       firstString(collection, [["issue_details", "value"], ["issue", "value"], ["maintenance_issue", "value"]]) ||
       firstString(analysis, [["transcript_summary"], ["summary"]]) ||
       "Maintenance intake from ElevenLabs call",
-    urgency:
-      firstString(collection, [["urgency", "value"], ["priority", "value"]]) ||
-      firstString(analysis, [["urgency"], ["priority"]]) ||
-      "Medium",
+    urgency: normalizeUrgency(rawUrgency, `${transcript}\n${firstString(analysis, [["transcript_summary"], ["summary"]]) || ""}`),
+    sentiment: firstString(analysis, [["user_sentiment"], ["sentiment"]]),
+    disposition: firstString(analysis, [["call_successful"], ["disposition"], ["outcome"]]),
+    recordingUrl: firstString(data, [["metadata", "recording_url"], ["recording_url"], ["audio_url"]]),
+    durationSeconds: durationSecs === null ? null : Math.max(0, Math.round(durationSecs)),
     permissionToEnter: firstString(collection, [
       ["permission_to_enter", "value"],
       ["entry_permission", "value"],
@@ -188,7 +205,103 @@ export async function POST(req: Request) {
     });
 
     if (intakeError) throw new ApiError("server_error", intakeError.message);
-    return apiJson({ success: true, ticketId });
+
+    let contactId: string | null = null;
+    if (normalized.callerPhone) {
+      const { data: existingContact, error: contactLookupError } = await supabase
+        .from("crm_contacts")
+        .select("id")
+        .eq("phone", normalized.callerPhone)
+        .limit(1)
+        .maybeSingle();
+      if (contactLookupError) throw new ApiError("server_error", contactLookupError.message);
+      if (existingContact?.id) {
+        contactId = existingContact.id;
+        const { error } = await supabase
+          .from("crm_contacts")
+          .update({
+            full_name: normalized.residentName,
+            property_label: normalized.property,
+            unit: normalized.unit,
+            last_contact_at: normalized.callEndedAt || new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", contactId);
+        if (error) throw new ApiError("server_error", error.message);
+      } else {
+        const { data: createdContact, error } = await supabase
+          .from("crm_contacts")
+          .insert({
+            contact_type: "Resident",
+            full_name: normalized.residentName,
+            phone: normalized.callerPhone,
+            property_label: normalized.property,
+            unit: normalized.unit,
+            last_contact_at: normalized.callEndedAt || new Date().toISOString(),
+            tags: ["ElevenLabs caller"],
+          })
+          .select("id")
+          .single();
+        if (error) throw new ApiError("server_error", error.message);
+        contactId = createdContact.id;
+      }
+    }
+
+    const { data: callRecord, error: callError } = await supabase
+      .from("call_records")
+      .upsert(
+        {
+          provider: "elevenlabs",
+          provider_call_id: normalized.conversationId,
+          transport_call_id: normalized.transportCallId,
+          provider_agent_id: normalized.agentId,
+          maintenance_ticket_id: ticketId,
+          contact_id: contactId,
+          direction: normalized.direction === "outbound" ? "outbound" : "inbound",
+          from_phone: normalized.callerPhone,
+          to_phone: normalized.toPhone,
+          caller_name: normalized.residentName,
+          property_label: normalized.property,
+          unit: normalized.unit,
+          category: normalized.category,
+          urgency: normalized.urgency,
+          emergency: normalized.urgency === "Emergency",
+          status: normalized.callStatus,
+          disposition: normalized.disposition,
+          sentiment: normalized.sentiment,
+          summary: normalized.summary,
+          transcript: normalized.transcript,
+          recording_url: normalized.recordingUrl,
+          duration_seconds: normalized.durationSeconds,
+          started_at: normalized.callStartedAt,
+          ended_at: normalized.callEndedAt,
+          metadata: { eventType: normalized.eventType },
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "provider,provider_call_id" }
+      )
+      .select("id")
+      .single();
+    if (callError) throw new ApiError("server_error", callError.message);
+
+    const { error: automationError } = await supabase.from("automation_runs").insert({
+      workflow: "voice_intake",
+      entity_type: "call_record",
+      entity_id: callRecord.id,
+      mode: autonomyMode(),
+      status: normalized.urgency === "Emergency" ? "needs_review" : "completed",
+      decision: normalized.urgency === "Emergency" ? "emergency_escalation_created" : "ticket_created",
+      reason:
+        normalized.urgency === "Emergency"
+          ? "Life-safety policy requires human review."
+          : "Signed ElevenLabs transcript normalized into the call CRM and maintenance queue.",
+      input_snapshot: { provider: "elevenlabs", conversationId: normalized.conversationId },
+      output_snapshot: { ticketId, callRecordId: callRecord.id, urgency: normalized.urgency },
+      completed_at: new Date().toISOString(),
+    });
+    if (automationError) throw new ApiError("server_error", automationError.message);
+
+    return apiJson({ success: true, ticketId, callRecordId: callRecord.id });
   } catch (error) {
     return apiError(error);
   }

@@ -3,8 +3,12 @@ import fs from "node:fs";
 import test from "node:test";
 import { PGlite } from "@electric-sql/pglite";
 
-const migrationSql = fs
-  .readFileSync("supabase/migrations/202607170001_pilot_hardening.sql", "utf8")
+const migrationSql = [
+  "supabase/migrations/202607170001_pilot_hardening.sql",
+  "supabase/migrations/202607200001_autonomous_operations.sql",
+]
+  .map((file) => fs.readFileSync(file, "utf8"))
+  .join("\n")
   .replace(/create extension if not exists pgcrypto;\r?\n/i, "");
 
 const ACTOR_ID = "00000000-0000-4000-8000-000000000001";
@@ -139,7 +143,7 @@ test("pilot hardening migration executes in a disposable PostgreSQL-compatible d
       db,
       "select count(*)::integer as count from information_schema.tables where table_schema = 'public'"
     );
-    assert.ok(tableCount.count >= 8);
+    assert.ok(tableCount.count >= 15);
   } finally {
     await db.close();
   }

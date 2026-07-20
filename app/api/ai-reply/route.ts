@@ -1,11 +1,11 @@
 import { apiError } from "@/lib/security/api";
 import { requireAdmin } from "@/lib/security/auth";
-import { unavailable } from "@/lib/security/unavailable";
+import { POST as replyPOST } from "@/app/api/email/reply/route";
 
-export async function POST() {
+export async function POST(req: Request) {
   try {
     await requireAdmin();
-    return unavailable("AI email reply generation");
+    return replyPOST(req);
   } catch (error) {
     return apiError(error);
   }

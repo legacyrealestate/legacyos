@@ -4,6 +4,8 @@ import test from "node:test";
 import twilio from "twilio";
 import { safeRelativeRedirect } from "../lib/security/redirects.ts";
 import { verifyElevenLabsSignature } from "../lib/security/webhooks.ts";
+import { verifyResendWebhook } from "../lib/security/resend-webhooks.ts";
+import { normalizeUrgency, requiresHumanReview } from "../lib/workflows/classification.ts";
 import { validateTwilioStatusCallbackSignature } from "../lib/communications/twilio.ts";
 import {
   DOCUMENT_CATEGORIES,
@@ -67,6 +69,38 @@ test("ElevenLabs webhook signature verification rejects invalid and stale signat
     nowMs: 1800000000000,
   });
   assert.equal(stale.ok, false);
+});
+
+test("Resend webhook verification accepts a fresh Svix signature", () => {
+  const rawBody = JSON.stringify({ type: "email.received" });
+  const id = "msg_test";
+  const timestamp = "1800000000";
+  const key = crypto.randomBytes(32);
+  const secret = `whsec_${key.toString("base64")}`;
+  const signature = crypto
+    .createHmac("sha256", key)
+    .update(`${id}.${timestamp}.${rawBody}`)
+    .digest("base64");
+
+  assert.equal(
+    verifyResendWebhook({
+      rawBody,
+      id,
+      timestamp,
+      signature: `v1,${signature}`,
+      secret,
+      nowMs: Number(timestamp) * 1000,
+    }),
+    true
+  );
+});
+
+test("urgency classification stops life-safety and legal workflows for review", () => {
+  assert.equal(normalizeUrgency(null, "There is a gas smell in the kitchen"), "Emergency");
+  assert.equal(normalizeUrgency("routine", "Paint touchup"), "Low");
+  assert.equal(requiresHumanReview({ urgency: "Emergency", text: "gas smell" }), true);
+  assert.equal(requiresHumanReview({ urgency: "Medium", text: "My attorney will contact you" }), true);
+  assert.equal(requiresHumanReview({ urgency: "Medium", text: "What time can maintenance visit?" }), false);
 });
 
 test("auth callback redirect validation only accepts same-origin relative paths", () => {

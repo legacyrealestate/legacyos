@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "../../lib/supabase";
+import { getSupabaseBrowserClient } from "../../lib/supabase";
 
 export default function UserCard() {
   const [email, setEmail] =
     useState("");
 
   async function logout() {
+    const supabase = getSupabaseBrowserClient();
     await supabase.auth.signOut();
 
     window.location.href = "/login";
@@ -17,6 +18,7 @@ export default function UserCard() {
     let cancelled = false;
 
     async function loadUser() {
+      const supabase = getSupabaseBrowserClient();
       const {
         data: { user },
       } = await supabase.auth.getUser();

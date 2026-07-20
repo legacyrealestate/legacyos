@@ -1,4 +1,5 @@
 export const PUBLIC_API_ROUTES = new Set([
+  "/api/email/webhook",
   "/api/elevenlabs",
   "/api/twilio/status",
 ]);

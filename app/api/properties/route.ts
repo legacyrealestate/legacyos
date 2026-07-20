@@ -1,11 +1,11 @@
 import { apiError } from "@/lib/security/api";
 import { requireUser } from "@/lib/security/auth";
-import { unavailable } from "@/lib/security/unavailable";
+import { GET as crmPropertiesGET } from "@/app/api/crm/properties/route";
 
 export async function GET() {
   try {
     await requireUser();
-    return unavailable("property sync");
+    return crmPropertiesGET();
   } catch (error) {
     return apiError(error);
   }

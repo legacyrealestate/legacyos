@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "../../lib/supabase";
+import { getSupabaseBrowserClient } from "../../lib/supabase";
 
 export default function ProtectedRoute({
   children,
@@ -13,6 +13,7 @@ export default function ProtectedRoute({
 
   useEffect(() => {
     async function checkAuth() {
+      const supabase = getSupabaseBrowserClient();
       const {
         data: { session },
       } = await supabase.auth.getSession();

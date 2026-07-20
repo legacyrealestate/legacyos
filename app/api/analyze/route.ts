@@ -1,11 +1,18 @@
-import { apiError } from "@/lib/security/api";
+import { apiError, apiJson } from "@/lib/security/api";
 import { requireAdmin } from "@/lib/security/auth";
-import { unavailable } from "@/lib/security/unavailable";
+import { assertString, safeJsonObject } from "@/lib/security/validation";
+import { generateAlmaResponse } from "@/lib/ai/alma";
 
-export async function POST() {
+export async function POST(req: Request) {
   try {
     await requireAdmin();
-    return unavailable("AI transcript analysis");
+    const body = safeJsonObject(await req.json());
+    const transcript = assertString(body.transcript || body.message, "transcript", 20000);
+    const result = await generateAlmaResponse({
+      message: "Analyze this call transcript. Return urgency, category, concise summary, risks, and the next staff action.",
+      context: { transcript },
+    });
+    return apiJson({ success: true, analysis: result.text });
   } catch (error) {
     return apiError(error);
   }

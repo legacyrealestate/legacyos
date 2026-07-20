@@ -1,10 +1,2 @@
-import UnavailablePanel from "@/app/components/UnavailablePanel";
-
-export default function SettingsPage() {
-  return (
-    <UnavailablePanel
-      title="Settings"
-      description="There are no editable runtime settings in the pilot UI. Operational configuration is managed through environment variables and provider dashboards."
-    />
-  );
-}
+import IntegrationCenter from "@/app/components/IntegrationCenter";
+export default function SettingsPage() { return <IntegrationCenter />; }

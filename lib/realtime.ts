@@ -1,6 +1,5 @@
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseBrowserClient } from "@/lib/supabase";
 
-export const realtime = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+export function getRealtimeClient() {
+  return getSupabaseBrowserClient();
+}

@@ -1,11 +1,11 @@
 import { apiError } from "@/lib/security/api";
 import { requireAdmin } from "@/lib/security/auth";
-import { unavailable } from "@/lib/security/unavailable";
+import { POST as almaPOST } from "@/app/api/alma/chat/route";
 
-export async function POST() {
+export async function POST(req: Request) {
   try {
     await requireAdmin();
-    return unavailable("Command Center AI");
+    return almaPOST(req);
   } catch (error) {
     return apiError(error);
   }

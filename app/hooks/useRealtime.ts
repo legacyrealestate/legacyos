@@ -2,12 +2,7 @@
 
 import { useEffect, useRef } from "react";
 
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { getRealtimeClient } from "@/lib/realtime";
 
 export default function useRealtime(
   table: string,
@@ -20,7 +15,12 @@ export default function useRealtime(
   }, [callback]);
 
   useEffect(() => {
-
+    let supabase;
+    try {
+      supabase = getRealtimeClient();
+    } catch {
+      return;
+    }
     const channel =
       supabase
         .channel(
