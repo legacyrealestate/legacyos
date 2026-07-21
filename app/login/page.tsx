@@ -1,136 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { endLegacySession, type Account } from "@/app/components/AccountControls";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
 
 export default function LoginPage() {
-
-  const [email, setEmail] =
-    useState("");
-
-  const [password, setPassword] =
-    useState("");
-
-  const [loading, setLoading] =
-    useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
-
-  const login = async () => {
-
-    try {
-
-      setLoading(true);
-      setErrorMessage("");
-
-      const supabase = getSupabaseBrowserClient();
-
-      const { error } =
-        await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-
-      if (error) {
-
-        setErrorMessage(error.message);
-
-        setLoading(false);
-
-        return;
-
-      }
-
-      window.location.href = "/";
-
-    } catch (err) {
-
-      console.error(err);
-
-      setErrorMessage(err instanceof Error ? err.message : "Authentication failed");
-
-    }
-
-    setLoading(false);
-
-  };
-
-  return (
-    <div className="min-h-screen bg-[#f5f5f7] flex items-center justify-center p-6">
-
-      <div className="w-full max-w-[520px] rounded-[40px] border border-black/[0.06] bg-white p-10 shadow-[0_20px_80px_rgba(0,0,0,0.06)]">
-
-        <p className="uppercase tracking-[0.28em] text-zinc-400 text-[11px]">
-          Secure Infrastructure Access
-        </p>
-
-        <h1 className="text-[52px] font-semibold tracking-tight mt-5">
-          LegacyOS
-        </h1>
-
-        <p className="text-zinc-500 text-[15px] leading-relaxed mt-5">
-          Enterprise operational intelligence platform.
-        </p>
-
-        <div className="mt-10">
-
-          <p className="text-[13px] text-zinc-500 mb-3">
-            Email Address
-          </p>
-
-          <input
-            type="email"
-            value={email}
-            onChange={(e) =>
-              setEmail(e.target.value)
-            }
-            placeholder="you@company.com"
-            className="w-full h-[58px] rounded-2xl border border-black/[0.06] px-5 outline-none bg-white"
-          />
-
-        </div>
-
-        <div className="mt-6">
-
-          <p className="text-[13px] text-zinc-500 mb-3">
-            Password
-          </p>
-
-          <input
-            type="password"
-            value={password}
-            onChange={(e) =>
-              setPassword(e.target.value)
-            }
-            placeholder="••••••••"
-            className="w-full h-[58px] rounded-2xl border border-black/[0.06] px-5 outline-none bg-white"
-          />
-
-        </div>
-
-        <button
-          onClick={login}
-          disabled={loading}
-          className="w-full h-[58px] rounded-2xl bg-black text-white mt-8 text-[14px] font-medium transition-all duration-300 hover:opacity-90 disabled:opacity-50"
-        >
-          {
-            loading
-              ? "Accessing Infrastructure..."
-              : "Access Infrastructure"
-          }
-        </button>
-
-        {errorMessage && <p className="mt-4 rounded-2xl border border-red-100 bg-red-50 p-4 text-sm text-red-700">{errorMessage}</p>}
-
-        <div className="mt-8 text-center">
-
-          <p className="text-[12px] text-zinc-400">
-            Authorized enterprise access only.
-          </p>
-
-        </div>
-
-      </div>
-
-    </div>
-  );
+  const [email, setEmail] = useState(""), [password, setPassword] = useState(""), [loading, setLoading] = useState(false), [error, setError] = useState(""), [notice, setNotice] = useState(""), [recovery, setRecovery] = useState(false), [account, setAccount] = useState<Account | null>(null);
+  useEffect(() => { let active = true; fetch("/api/auth/session", { cache: "no-store" }).then(async response => { if (!active || !response.ok) return; const value = await response.json(); setAccount(value); if (value.profileStatus === "active") window.location.replace("/"); }); return () => { active = false; }; }, []);
+  async function login(event: React.FormEvent) { event.preventDefault(); setLoading(true); setError(""); setNotice(""); try { const { error: signInError } = await getSupabaseBrowserClient().auth.signInWithPassword({ email: email.trim(), password }); if (signInError) throw signInError; const response = await fetch("/api/auth/session", { cache: "no-store" }); const profile = await response.json(); if (!response.ok) throw new Error(profile.error || "Unable to verify this account."); if (profile.profileStatus !== "active") { setAccount(profile); setLoading(false); return; } window.location.replace("/"); } catch (cause) { setError(cause instanceof Error ? cause.message : "Authentication failed."); setLoading(false); } }
+  async function forgot(event: React.FormEvent) { event.preventDefault(); if (!email.trim()) { setError("Enter the account email first."); return; } setLoading(true); setError(""); const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent("/reset-password")}`; const { error: resetError } = await getSupabaseBrowserClient().auth.resetPasswordForEmail(email.trim(), { redirectTo }); if (resetError) setError(resetError.message); else setNotice("If the account exists, Supabase sent a secure recovery link."); setLoading(false); }
+  if (account && account.profileStatus !== "active") return <main className="grid min-h-screen place-items-center bg-[#f5f5f3] p-6"><section className="w-full max-w-lg rounded-[30px] border border-amber-200 bg-white p-8"><p className="text-[10px] uppercase tracking-[.24em] text-amber-700">Account access</p><h1 className="mt-4 text-3xl font-semibold">Profile {account.profileStatus}</h1><p className="mt-4 text-sm leading-6 text-zinc-600">You are signed in as <strong>{account.email}</strong>. {account.profileStatus === "pending" ? "This staff profile is awaiting administrator approval." : "This staff profile is inactive."}</p><button onClick={() => endLegacySession()} className="mt-6 w-full rounded-xl bg-black px-5 py-3 text-sm text-white">Sign out and use another account</button></section></main>;
+  return <main className="grid min-h-screen place-items-center bg-[#f5f5f3] p-6"><form onSubmit={recovery ? forgot : login} className="w-full max-w-[500px] rounded-[34px] border border-black/[.06] bg-white p-8 shadow-[0_20px_80px_rgba(0,0,0,.06)] md:p-10"><p className="text-[10px] uppercase tracking-[.28em] text-zinc-400">Secure infrastructure access</p><h1 className="mt-5 text-5xl font-semibold tracking-tight">LegacyOS</h1><p className="mt-4 text-sm leading-6 text-zinc-500">{recovery ? "Request a secure password recovery link." : "Sign in with an approved company account."}</p><label className="mt-8 block text-xs text-zinc-500">Email address<input autoComplete="email" required type="email" value={email} onChange={event => setEmail(event.target.value)} className="mt-2 h-13 w-full rounded-xl border px-4 text-sm"/></label>{!recovery && <label className="mt-5 block text-xs text-zinc-500">Password<input autoComplete="current-password" required type="password" value={password} onChange={event => setPassword(event.target.value)} className="mt-2 h-13 w-full rounded-xl border px-4 text-sm"/></label>}<button disabled={loading} className="mt-7 h-13 w-full rounded-xl bg-black text-sm font-medium text-white disabled:opacity-50">{loading ? "Working…" : recovery ? "Send recovery link" : "Sign in"}</button><button type="button" onClick={() => { setRecovery(value => !value); setError(""); setNotice(""); }} className="mt-4 w-full text-center text-xs text-zinc-500 underline underline-offset-4">{recovery ? "Return to sign in" : "Forgot password?"}</button>{error && <p role="alert" className="mt-5 rounded-xl border border-red-100 bg-red-50 p-4 text-sm text-red-700">{error}</p>}{notice && <p role="status" className="mt-5 rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-sm text-emerald-800">{notice}</p>}</form></main>;
 }

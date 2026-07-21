@@ -22,6 +22,7 @@ import {
 import { useEffect, useState } from "react";
 import NotificationDrawer from "@/app/components/NotificationDrawer";
 import AlmaDock from "@/app/components/AlmaDock";
+import AccountControls, { endLegacySession, type Account } from "@/app/components/AccountControls";
 
 type NotificationRecord = {
   id?: string;
@@ -36,6 +37,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationRecord[]>([]);
   const [notificationError, setNotificationError] = useState("");
+  const [account, setAccount] = useState<Account | null>(null);
   const pathname = usePathname();
 
   async function loadNotifications() {
@@ -76,6 +78,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  useEffect(() => { let active = true; fetch("/api/auth/session", { cache: "no-store" }).then(async response => { if (!active || !response.ok) return; setAccount(await response.json()); }); return () => { active = false; }; }, []);
+
   const unacknowledgedCount = notifications.filter((notification) => !notification.acknowledged_at).length;
 
   const links = [
@@ -114,7 +118,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </div>
 
       <div className={`fixed inset-y-0 left-0 w-[280px] bg-white border-r border-black/[0.06] z-[300] transform transition-all duration-300 md:hidden ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}>
-        <div className="p-6 pt-24 space-y-2">
+        <div className="flex h-full flex-col p-6 pt-24">
+          <div className="space-y-2 overflow-y-auto">
           {links.map((link) => {
             const Icon = link.icon;
             const active = pathname === link.href;
@@ -126,6 +131,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               </Link>
             );
           })}
+          </div>
+          <div className="mt-auto"><AccountControls compact onNavigate={() => setMobileOpen(false)}/></div>
         </div>
       </div>
 
@@ -163,10 +170,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           {unacknowledgedCount > 0 && <span className="rounded-full bg-red-600 px-2 py-1 text-[10px] text-white">{unacknowledgedCount}</span>}
         </button>
         {notificationError && <p className="mt-3 text-xs text-red-700">{notificationError}</p>}
+        <div className="mt-auto"><AccountControls /></div>
       </div>
 
       <main className="flex-1 overflow-y-auto p-4 md:p-8 pt-[90px] md:pt-8">
-        {children}
+        {account && account.profileStatus !== "active" ? <div className="mx-auto mt-16 max-w-xl rounded-[28px] border border-amber-200 bg-white p-8"><p className="text-[10px] uppercase tracking-[.24em] text-amber-700">Account access</p><h1 className="mt-4 text-3xl font-semibold">Profile {account.profileStatus}</h1><p className="mt-4 text-sm leading-6 text-zinc-600">Signed in as <strong>{account.email}</strong>. {account.profileStatus === "pending" ? "This account is awaiting administrator approval." : "This profile is inactive. Contact an administrator."}</p><button onClick={() => endLegacySession()} className="mt-6 rounded-xl bg-black px-5 py-3 text-sm text-white">Sign out and use another account</button></div> : children}
       </main>
       <NotificationDrawer
         open={notificationsOpen}
