@@ -7,6 +7,7 @@ import { verifyElevenLabsSignature } from "../lib/security/webhooks.ts";
 import { verifyResendWebhook } from "../lib/security/resend-webhooks.ts";
 import { normalizeUrgency, requiresHumanReview } from "../lib/workflows/classification.ts";
 import { validateTwilioStatusCallbackSignature } from "../lib/communications/twilio.ts";
+import { ApiError } from "../lib/security/errors.ts";
 import {
   DOCUMENT_CATEGORIES,
   assertE164,
@@ -102,6 +103,8 @@ test("urgency classification stops life-safety and legal workflows for review", 
   assert.equal(requiresHumanReview({ urgency: "Medium", text: "My attorney will contact you" }), true);
   assert.equal(requiresHumanReview({ urgency: "Medium", text: "What time can maintenance visit?" }), false);
 });
+
+test("service unavailable errors map to HTTP 503",()=>{const error=new ApiError("service_unavailable","Temporarily unavailable");assert.equal(error.status,503);assert.equal(error.code,"service_unavailable")});
 
 test("auth callback redirect validation only accepts same-origin relative paths", () => {
   assert.equal(safeRelativeRedirect("/maintenance?ticket=1"), "/maintenance?ticket=1");

@@ -1,0 +1,10 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import test from "node:test";
+import { classifySafety,isConsequentialAction } from "../lib/workflows/classification.ts";
+test("deterministic safety policy identifies life-safety emergencies",()=>{for(const text of["There is a fire in the kitchen","I smell gas","A live wire is sparking","A baby is locked out"]){const result=classifySafety(text);assert.equal(result.classification,"emergency");assert.equal(result.requiresHuman,true);assert.equal(result.confidence,1)}});
+test("autonomy policy marks consequential actions",()=>{for(const action of["dispatch","send","call","financial_commitment","lease_change","access_change","emergency_decision"])assert.equal(isConsequentialAction(action),true);assert.equal(isConsequentialAction("create_internal_task"),false)});
+test("cron authentication uses timing-safe comparison",()=>{const source=fs.readFileSync("lib/security/cron.ts","utf8");assert.match(source,/timingSafeEqual/);assert.match(source,/CRON_SECRET/)});
+test("OAuth uses state, PKCE, offline access, and encrypted storage",()=>{const start=fs.readFileSync("app/api/oauth/[provider]/start/route.ts","utf8"),callback=fs.readFileSync("app/api/oauth/[provider]/callback/route.ts","utf8");assert.match(start,/code_challenge_method/);assert.match(start,/offline/);assert.match(callback,/legacy_oauth_state_/);assert.match(callback,/encryptSecret/)});
+test("email sync persists Gmail history and Microsoft delta checkpoints",()=>{const source=fs.readFileSync("lib/providers/email.ts","utf8");assert.match(source,/startHistoryId/);assert.match(source,/@odata\.deltaLink/);assert.match(source,/onConflict:"connection_id,provider_message_id"/);assert.match(source,/refresh_token/)});
+test("revoked email authorization returns reconnect-required error",()=>{const source=fs.readFileSync("lib/providers/email.ts","utf8");assert.match(source,/authorization was revoked or lacks permission; reconnect the account/);assert.match(source,/status===401\|\|response.status===403/)});

@@ -3,13 +3,13 @@ import fs from "node:fs";
 import test from "node:test";
 import { PGlite } from "@electric-sql/pglite";
 
-const migrationSql = [
-  "supabase/migrations/202607170001_pilot_hardening.sql",
-  "supabase/migrations/202607200001_autonomous_operations.sql",
-]
-  .map((file) => fs.readFileSync(file, "utf8"))
-  .join("\n")
+const migrationSql = fs
+  .readFileSync("supabase/migrations/202607170001_pilot_hardening.sql", "utf8")
   .replace(/create extension if not exists pgcrypto;\r?\n/i, "");
+const operationalMigrationSql = fs.readFileSync(
+  "supabase/migrations/202607200001_operational_platform.sql",
+  "utf8"
+);
 
 const ACTOR_ID = "00000000-0000-4000-8000-000000000001";
 const VENDOR_ID = "00000000-0000-4000-8000-000000000002";
@@ -42,7 +42,7 @@ async function setupDb() {
     create role service_role;
     create schema auth;
     create schema storage;
-    create table auth.users(id uuid primary key);
+    create table auth.users(id uuid primary key, email text, raw_user_meta_data jsonb default '{}'::jsonb);
     create function auth.uid() returns uuid language sql stable as $$ select null::uuid $$;
     create table storage.buckets(
       id text primary key,
@@ -58,6 +58,7 @@ async function setupDb() {
     );
   `);
   await db.exec(migrationSql);
+  await db.exec(operationalMigrationSql);
   await db.exec(`insert into auth.users(id) values ('${ACTOR_ID}');`);
   return db;
 }
@@ -136,18 +137,20 @@ async function ticketState(db: PGlite) {
   );
 }
 
-test("pilot hardening migration executes in a disposable PostgreSQL-compatible database", async () => {
+test("all migrations execute in order in a disposable PostgreSQL-compatible database", async () => {
   const db = await setupDb();
   try {
     const tableCount = await one<{ count: number }>(
       db,
       "select count(*)::integer as count from information_schema.tables where table_schema = 'public'"
     );
-    assert.ok(tableCount.count >= 15);
+    assert.ok(tableCount.count >= 16);
   } finally {
     await db.close();
   }
 });
+
+test("voice event ledger enforces CallSid event idempotency",async()=>{const db=await setupDb();try{const sid="CA11111111111111111111111111111111",key="same-event";await db.query(`insert into public.voice_provider_events(provider,provider_call_id,event_type,event_key) values('twilio','${sid}','status','${key}') on conflict(provider,event_key) do nothing`);await db.query(`insert into public.voice_provider_events(provider,provider_call_id,event_type,event_key) values('twilio','${sid}','status','${key}') on conflict(provider,event_key) do nothing`);const row=await one<{count:number}>(db,`select count(*)::integer count from public.voice_provider_events where provider_call_id='${sid}'`);assert.equal(row.count,1)}finally{await db.close()}});
 
 test("manual vendor contact updates ticket, job, and counters exactly once", async () => {
   const db = await setupDb();

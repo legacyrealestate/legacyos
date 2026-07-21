@@ -12,6 +12,18 @@ export type AuthContext = {
   role: StaffRole;
 };
 
+function emailSet(name: string) {
+  return new Set((process.env[name] || "").split(",").map((email) => email.trim().toLowerCase()).filter(Boolean));
+}
+
+export function approvedRole(email: string | undefined): StaffRole | null {
+  const normalized = email?.trim().toLowerCase();
+  if (!normalized) return null;
+  if (emailSet("LEGACY_ADMIN_EMAILS").has(normalized)) return "admin";
+  if (emailSet("LEGACY_STAFF_EMAILS").has(normalized)) return "staff";
+  return null;
+}
+
 export async function requireUser(): Promise<AuthContext> {
   const supabase = await createSupabaseServerClient();
   const {
@@ -24,22 +36,36 @@ export async function requireUser(): Promise<AuthContext> {
   }
 
   const service = createServiceSupabaseClient();
-  const { data: profile, error: profileError } = await service
+  const profileResult = await service
     .from("profiles")
     .select("role, active")
     .eq("id", user.id)
     .maybeSingle();
+  let profile = profileResult.data;
+  const profileError = profileResult.error;
 
   if (profileError) {
-    throw new ApiError("server_error", profileError.message);
+    if (profileError.code === "42P01" || profileError.code === "PGRST205") {
+      throw new ApiError("missing_migration", "Staff profile migration has not been applied.");
+    }
+    throw new ApiError("server_error", "Unable to verify staff profile.");
   }
 
-  if (!profile?.active) {
-    throw new ApiError("forbidden", "Staff profile is inactive or missing.");
+  const role = approvedRole(user.email);
+  if (!profile && role) {
+    const repaired = await service.from("profiles").upsert({ id: user.id, role, active: true }, { onConflict: "id" }).select("role, active").single();
+    if (repaired.error) throw new ApiError("server_error", "Unable to repair approved staff profile.");
+    profile = repaired.data;
   }
 
-  const role = profile.role === "admin" ? "admin" : "staff";
-  return { user, role };
+  if (!profile) {
+    throw new ApiError("profile_pending", "Your staff profile is pending administrator approval.");
+  }
+  if (!profile.active) {
+    throw new ApiError("profile_inactive", "Your staff profile is inactive. Contact an administrator.");
+  }
+
+  return { user, role: profile.role === "admin" ? "admin" : "staff" };
 }
 
 export async function requireAdmin() {

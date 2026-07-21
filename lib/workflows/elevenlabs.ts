@@ -116,5 +116,6 @@ export function normalizeElevenLabsPayload(payload: Record<string, unknown>) {
       deriveCallEndedAt(startUnixSecs, durationSecs) ||
       firstString(data, [["metadata", "end_time"], ["end_time"], ["call_ended_at"]]) || null,
     callStatus: firstString(data, [["status"], ["call_status"]]) || "completed",
+    twilioCallSid: firstString(data, [["metadata","phone_call","call_sid"],["metadata","phone_call","twilio_call_sid"],["metadata","twilio_call_sid"],["twilio_call_sid"]]),
   };
 }

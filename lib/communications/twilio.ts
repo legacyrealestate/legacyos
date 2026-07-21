@@ -18,6 +18,15 @@ export function getTwilioStatusCallbackUrl() {
   return origin ? `${origin}/api/twilio/status` : null;
 }
 
+export function getTwilioWebhookUrl(path: string) {
+  const origin=getCanonicalAppUrl();
+  return origin?`${origin}${path.startsWith("/")?path:`/${path}`}`:null;
+}
+
+export function validateTwilioWebhookSignature(params:{authToken:string;signature:string;url:string|null;params:Record<string,string>}) {
+  return Boolean(params.url)&&twilio.validateRequest(params.authToken,params.signature,params.url!,params.params);
+}
+
 export function validateTwilioStatusCallbackSignature({
   authToken,
   signature,

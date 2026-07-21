@@ -1,59 +1,51 @@
 import { ApiError, apiError, apiJson } from "@/lib/security/api";
 import { requireUser } from "@/lib/security/auth";
 import { createServiceSupabaseClient } from "@/lib/supabase/server";
-import { autonomyMode, getIntegrationStates } from "@/lib/config/env";
 
 export async function GET() {
   try {
     await requireUser();
     const supabase = createServiceSupabaseClient();
-    const since = new Date(Date.now() - 7 * 86400000).toISOString();
-    const [calls, tickets, vendors, notifications, operations, emails, automations, contacts, properties] = await Promise.all([
-      supabase.from("call_records").select("id,caller_name,category,urgency,emergency,status,summary,duration_seconds,started_at,created_at").gte("created_at", since).order("created_at", { ascending: false }),
-      supabase.from("maintenance_tickets").select("id,tenant_name,property,issue,urgency,status,assigned_vendor_name,created_at").order("created_at", { ascending: false }).limit(100),
-      supabase.from("vendors").select("id,name,trade,active,open_jobs").eq("active", true),
-      supabase.from("notifications").select("id,acknowledged_at").is("acknowledged_at", null),
-      supabase.from("operations_feed").select("id,type,title,description,created_at").order("created_at", { ascending: false }).limit(10),
-      supabase.from("email_threads").select("id,status,urgency,last_message_at").order("last_message_at", { ascending: false }).limit(100),
-      supabase.from("automation_runs").select("id,status,workflow,created_at").gte("created_at", since),
-      supabase.from("crm_contacts").select("id", { count: "exact", head: true }),
-      supabase.from("crm_properties").select("id", { count: "exact", head: true }),
-    ]);
-    for (const result of [calls, tickets, vendors, notifications, operations, emails, automations, contacts, properties]) {
+
+    const [callsResult, vendorsResult, notificationsResult, operationsResult, emailResult, connectionsResult, jobsResult] =
+      await Promise.all([
+        supabase.from("maintenance_tickets").select("*"),
+        supabase.from("vendors").select("*").eq("active", true),
+        supabase.from("notifications").select("*"),
+        supabase
+          .from("operations_feed")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(6),
+        supabase.from("email_threads").select("id,status,last_message_at"),
+        supabase.from("provider_connections").select("provider,status,last_success_at,last_sync_at,last_error"),
+        supabase.from("alma_jobs").select("status,run_after,updated_at"),
+      ]);
+
+    for (const result of [callsResult, vendorsResult, notificationsResult, operationsResult, emailResult, connectionsResult, jobsResult]) {
       if (result.error) throw new ApiError("server_error", result.error.message);
     }
 
-    const callRows = calls.data || [];
-    const ticketRows = tickets.data || [];
-    const emailRows = emails.data || [];
-    const today = new Date().toISOString().slice(0, 10);
-    const durations = callRows.map((call) => call.duration_seconds).filter((value): value is number => typeof value === "number");
-    const callVolume = Array.from({ length: 7 }, (_, index) => {
-      const date = new Date(Date.now() - (6 - index) * 86400000).toISOString().slice(0, 10);
-      return { date, count: callRows.filter((call) => (call.started_at || call.created_at || "").slice(0, 10) === date).length };
-    });
-    const openStatuses = new Set(["New", "Open", "Needs Review", "Vendor Recommended", "Vendor Approved", "Notification Queued", "Sent", "Delivered", "Failed", "In Progress", "Emergency Escalated"]);
+    const calls = callsResult.data || [];
+    const emergencyCount = calls.filter((call) => call.urgency === "Emergency").length;
+    const escalatedCount = calls.filter((call) => call.status?.includes("Escalated")).length;
 
     return apiJson({
       metrics: {
-        callsToday: callRows.filter((call) => (call.started_at || call.created_at || "").slice(0, 10) === today).length,
-        callsSevenDays: callRows.length,
-        emergencies: ticketRows.filter((ticket) => ticket.urgency === "Emergency" && openStatuses.has(ticket.status)).length,
-        openTickets: ticketRows.filter((ticket) => openStatuses.has(ticket.status)).length,
-        averageCallSeconds: durations.length ? Math.round(durations.reduce((sum, value) => sum + value, 0) / durations.length) : 0,
-        activeVendors: vendors.data?.length || 0,
-        unreadNotifications: notifications.data?.length || 0,
-        openEmails: emailRows.filter((email) => !["Closed", "Replied"].includes(email.status)).length,
-        contacts: contacts.count || 0,
-        properties: properties.count || 0,
-        automationSuccess: automations.data?.filter((run) => run.status === "completed").length || 0,
+        totalCalls: calls.length,
+        emergencies: emergencyCount,
+        escalated: escalatedCount,
+        vendors: vendorsResult.data?.length || 0,
+        notifications: notificationsResult.data?.length || 0,
+        emailQueue: (emailResult.data || []).filter((item) => item.status === "open").length,
+        workerQueued: (jobsResult.data || []).filter((item) => ["queued","retry"].includes(item.status)).length,
+        workerDeadLetter: (jobsResult.data || []).filter((item) => item.status === "dead_letter").length,
       },
-      callVolume,
-      urgentQueue: ticketRows.filter((ticket) => ["Emergency", "Urgent", "High"].includes(ticket.urgency) && openStatuses.has(ticket.status)).slice(0, 8),
-      recentCalls: callRows.slice(0, 6),
-      operations: operations.data || [],
-      integrations: getIntegrationStates().map(({ id, label, configured }) => ({ id, label, configured })),
-      autonomyMode: autonomyMode(),
+      operations: operationsResult.data || [],
+      vendors: vendorsResult.data || [],
+      calls,
+      integrations: connectionsResult.data || [],
+      worker: { jobs: jobsResult.data || [], nextScheduledAt: (jobsResult.data || []).filter((item) => ["queued","retry"].includes(item.status)).map((item) => item.run_after).sort()[0] || null },
     });
   } catch (error) {
     return apiError(error);

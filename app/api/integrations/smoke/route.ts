@@ -1,0 +1,2 @@
+import{apiError,apiJson,ApiError}from"@/lib/security/api";import{requireAdmin}from"@/lib/security/auth";import{smokeTestProvider}from"@/lib/providers/smoke";
+export async function POST(req:Request){try{const auth=await requireAdmin(),body=await req.json()as{provider?:"google"|"microsoft"|"elevenlabs"|"twilio"};if(!body.provider||!["google","microsoft","elevenlabs","twilio"].includes(body.provider))throw new ApiError("bad_request","A supported provider is required.");return apiJson(await smokeTestProvider(body.provider,auth.user.id))}catch(error){return apiError(error)}}

@@ -1,0 +1,12 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import test from "node:test";
+import { needsCallFollowUp,shouldAcceptTwilioStatus } from "../lib/workflows/twilio-call-state.ts";
+test("Twilio out-of-order status cannot regress a completed call",()=>{assert.equal(shouldAcceptTwilioStatus("completed","ringing"),false);assert.equal(shouldAcceptTwilioStatus("ringing","completed"),true)});
+test("missed and failed Twilio calls require ALMA follow-up",()=>{for(const status of["busy","failed","no-answer","canceled"])assert.equal(needsCallFollowUp(status),true);assert.equal(needsCallFollowUp("completed"),false)});
+test("Twilio voice webhooks validate exact canonical URL and reject invalid signatures",()=>{const helper=fs.readFileSync("lib/providers/twilio-voice.ts","utf8");assert.match(helper,/getTwilioWebhookUrl\(path\)/);assert.match(helper,/Invalid Twilio signature/);assert.match(helper,/voice_provider_events/);assert.match(helper,/event_key/)});
+test("secure Twilio recording route requires staff auth",()=>{const route=fs.readFileSync("app/api/calls/[id]/twilio-recording/route.ts","utf8");assert.match(route,/requireUser\(\)/);assert.match(route,/TWILIO_AUTH_TOKEN/);assert.match(route,/private, no-store/)});
+test("Gmail reply MIME emits RFC threading headers",()=>{const source=fs.readFileSync("lib/providers/email-compose.ts","utf8");assert.match(source,/In-Reply-To:/);assert.match(source,/References:/);assert.match(source,/Content-Transfer-Encoding: base64/);assert.match(source,/threadId: replying/)});
+test("Microsoft implementation uses reply, reply-all, forward draft endpoints",()=>{const source=fs.readFileSync("lib/providers/email-compose.ts","utf8");assert.match(source,/createReply/);assert.match(source,/createReplyAll/);assert.match(source,/createForward/);assert.match(source,/\/send/)});
+test("email sends require idempotency and policy approval",()=>{const source=fs.readFileSync("lib/providers/email-compose.ts","utf8");assert.match(source,/idempotencyKey/);assert.match(source,/waiting_approval/);assert.match(source,/execute_low_risk/)});
+test("provider smoke tests are admin protected and do not return secrets",()=>{const route=fs.readFileSync("app/api/integrations/smoke/route.ts","utf8"),provider=fs.readFileSync("lib/providers/smoke.ts","utf8");assert.match(route,/requireAdmin\(\)/);assert.doesNotMatch(provider,/return\{[^}]*token/);assert.match(provider,/authenticated/);assert.match(provider,/permission_denied/)});
