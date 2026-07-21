@@ -1,377 +1,73 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
 import AppShell from "@/app/components/AppShell";
-import VendorDispatchModal from "@/app/components/VendorDispatchModal";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-const TICKET_STATUS_OPTIONS = [
-  "New",
-  "Open",
-  "Needs Review",
-  "Vendor Recommended",
-  "Failed",
-  "In Progress",
-  "Resolved",
-  "Closed",
-  "Emergency Escalated",
-];
-
+type TimelineItem = { id: string; type: string; title: string; description: string | null; created_at: string };
+type Task = { id: string; status: string; title: string; due_at: string | null; assigned_to: string | null };
 type Call = {
-  id: string;
-  tenant_name: string;
-  phone: string;
-  issue: string;
-  urgency: string;
-  ai_summary?: string | null;
-  transcript?: string | null;
-  status: string;
-  assigned_vendor_name?: string | null;
-  dispatch_status?: string | null;
-  provider?: string | null;
-  direction?: string | null;
-  call_status?: string | null;
-  call_duration_seconds?: number | null;
-  recording_available?: boolean;
-  recording_sid?: string | null;
-  contact_id?: string | null;
-  property?: string | null;
-  classification?: string | null;
-  crm_tasks?: Array<{status:string;title:string}>;
+  id: string; tenant_name: string; phone: string | null; property: string | null; unit: string | null; issue: string; issue_category: string; urgency: string; status: string;
+  provider: string | null; provider_conversation_id: string | null; provider_agent_id: string | null; direction: string | null; call_status: string | null; call_outcome: string | null;
+  call_duration_seconds: number | null; call_started_at: string | null; call_ended_at: string | null; recording_available: boolean; transcript: string | null; transcript_turns: Array<{ speaker: string; text: string; timeInCallSecs: number | null }>;
+  ai_summary: string | null; classification: string | null; classification_reason: string | null; classification_confidence: number | null; failure_reason: string | null;
+  contact_id: string | null; employee_assignee: string | null; internal_notes: string | null; follow_up_status: string | null; crm_tasks: Task[]; ticket_updates: TimelineItem[]; created_at: string;
 };
+type Staff = { id: string; full_name: string }; type Contact = { id: string; full_name: string; email?: string | null; phone?: string | null }; type Property = { id: string; name: string; address: string };
+const urgencyOptions = ["Emergency", "Urgent", "High", "Medium", "Low"];
+const callStates = ["completed", "answered", "failed", "missed", "no-answer"];
+const formatDate = (value: string | null) => value ? new Date(value).toLocaleString() : "Unavailable";
+const duration = (seconds: number | null) => seconds == null ? "Unavailable" : `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 
 export default function CallsPage() {
-  const [calls, setCalls] = useState<Call[]>([]);
-  const [selectedTicket, setSelectedTicket] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [busyTicketId, setBusyTicketId] = useState<string | null>(null);
-  const [error, setError] = useState("");
-  const [notes, setNotes] = useState<Record<string, string>>({});
-  const [statusDrafts, setStatusDrafts] = useState<Record<string, string>>({});
-  const [syncing, setSyncing] = useState(false);
-  const [filters,setFilters]=useState({q:"",status:"",urgency:"",property:"",from:"",to:""});
-
-  async function loadCalls() {
-    const params=new URLSearchParams(Object.entries(filters).filter(([,value])=>value));
-    const res = await fetch(`/api/calls?${params}`);
-    const data = await res.json();
-    setCalls(Array.isArray(data) ? data : []);
+  const [calls, setCalls] = useState<Call[]>([]), [staff, setStaff] = useState<Staff[]>([]), [contacts, setContacts] = useState<Contact[]>([]), [properties, setProperties] = useState<Property[]>([]);
+  const [selectedId, setSelectedIdState] = useState<string | null>(null), [loading, setLoading] = useState(true), [busy, setBusy] = useState(""), [error, setError] = useState(""), [notice, setNotice] = useState("");
+  const [filters, setFilters] = useState({ q: "", urgency: "", call_status: "", direction: "", property: "", contact_id: "", provider_agent_id: "", call_outcome: "", follow_up_status: "", from: "", to: "" });
+  const [edit, setEdit] = useState({ employeeAssignee: "", contactId: "", property: "", followUpStatus: "none", callOutcome: "", internalNotes: "" });
+  const selected = calls.find(call => call.id === selectedId) || null;
+  function setSelectedId(id: string | null) { setSelectedIdState(id); const call = calls.find(item => item.id === id); if (call) setEdit({ employeeAssignee: call.employee_assignee || "", contactId: call.contact_id || "", property: call.property || "", followUpStatus: call.follow_up_status || "none", callOutcome: call.call_outcome || "", internalNotes: call.internal_notes || "" }); }
+  function chooseCall(call: Call | null) { setSelectedIdState(call?.id || null); if (call) setEdit({ employeeAssignee: call.employee_assignee || "", contactId: call.contact_id || "", property: call.property || "", followUpStatus: call.follow_up_status || "none", callOutcome: call.call_outcome || "", internalNotes: call.internal_notes || "" }); }
+  const load = useCallback(async (next = filters) => {
+    setError(""); setLoading(true); const params = new URLSearchParams(Object.entries(next).filter(([, value]) => value));
+    const response = await fetch(`/api/calls?${params}`, { cache: "no-store" }); const json = await response.json();
+    if (!response.ok) setError(json.error || "Unable to load calls."); else { const rows = Array.isArray(json) ? json : []; setCalls(rows); chooseCall(rows.find((item: Call) => item.id === selectedId) || rows[0] || null); }
     setLoading(false);
-  }
+  }, [filters, selectedId]);
+  useEffect(() => { let active = true; Promise.all([fetch("/api/calls"), fetch("/api/staff"), fetch("/api/crm/contacts"), fetch("/api/crm/properties")]).then(async responses => { const values = await Promise.all(responses.map(response => response.json())); if (!active) return; if (!responses[0].ok) setError(values[0].error || "Unable to load calls."); else { const rows = Array.isArray(values[0]) ? values[0] : []; setCalls(rows); const requested = new URLSearchParams(window.location.search).get("selected"); chooseCall(rows.find((call: Call) => call.id === requested) || rows[0] || null); } if (responses[1].ok) setStaff(Array.isArray(values[1]) ? values[1] : values[1].staff || []); if (responses[2].ok) setContacts(values[2].contacts || values[2] || []); if (responses[3].ok) setProperties(values[3].properties || values[3] || []); setLoading(false); }); return () => { active = false; }; }, []);
+  const agents = useMemo(() => [...new Set(calls.map(call => call.provider_agent_id).filter(Boolean))] as string[], [calls]);
+  const outcomes = useMemo(() => [...new Set(calls.map(call => call.call_outcome).filter(Boolean))] as string[], [calls]);
 
-  useEffect(() => {
-    let cancelled = false;
+  async function sync() { setBusy("sync"); setError(""); const response = await fetch("/api/elevenlabs/sync", { method: "POST" }); const json = await response.json(); if (!response.ok) setError(json.error || "Synchronization failed."); else { setNotice(`Imported ${json.imported} conversations across ${json.pages} pages.`); await load(); } setBusy(""); }
+  async function saveCall(extra: Record<string, unknown> = {}) { if (!selected) return; setBusy("save"); const response = await fetch(`/api/tickets/${selected.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "call_update", employeeAssignee: edit.employeeAssignee || null, contactId: edit.contactId || null, property: edit.property || null, followUpStatus: edit.followUpStatus, callOutcome: edit.callOutcome || null, internalNotes: edit.internalNotes || null, note: "Updated from Phone CRM", ...extra }) }); const json = await response.json(); if (!response.ok) setError(json.error || "Unable to update call."); else { setNotice("Call workspace updated."); await load(); } setBusy(""); }
+  async function correctUrgency(value: string) { if (!selected) return; const reason = window.prompt("Reason for correcting this classification?"); if (!reason) return; setBusy("classification"); const classification = value === "Emergency" ? "emergency" : value === "Urgent" || value === "High" ? "urgent" : "routine"; const response = await fetch(`/api/calls/${selected.id}/classification`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ classification, reason }) }); const json = await response.json(); if (!response.ok) setError(json.error || "Unable to correct urgency."); else { setNotice("Urgency correction audited."); await load(); } setBusy(""); }
 
-    async function loadInitialCalls() {
-      const res = await fetch("/api/calls");
-      const data = await res.json();
-      if (cancelled) return;
-      setCalls(Array.isArray(data) ? data : []);
-      setLoading(false);
-    }
+  return <AppShell>
+    <section className="rounded-[28px] bg-[#07110c] p-7 text-white md:p-9"><div className="flex flex-wrap items-end justify-between gap-6"><div><p className="text-[10px] uppercase tracking-[.28em] text-emerald-300">Phone CRM · ElevenLabs</p><h1 className="mt-4 text-4xl font-semibold tracking-tight md:text-5xl">Call workspace.</h1><p className="mt-3 text-sm text-zinc-400">Search, review, assign, and close the loop on every production call.</p></div><button onClick={sync} disabled={!!busy} className="h-11 rounded-xl bg-white px-5 text-sm font-medium text-black disabled:opacity-50">{busy === "sync" ? "Synchronizing…" : "Sync ElevenLabs"}</button></div></section>
+    {(error || notice) && <div role="status" className={`mt-5 rounded-xl border p-4 text-sm ${error ? "border-red-200 bg-red-50 text-red-700" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}>{error || notice}</div>}
 
-    loadInitialCalls();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    <section aria-label="Call filters" className="mt-5 rounded-2xl border border-black/[.06] bg-white p-4"><div className="grid gap-2 md:grid-cols-4 xl:grid-cols-6">
+      <input aria-label="Transcript, caller, or phone search" value={filters.q} onChange={e => setFilters(v => ({ ...v, q: e.target.value }))} placeholder="Transcript, caller, phone" className="h-10 rounded-lg border px-3 text-sm md:col-span-2"/>
+      <Select label="Urgency" value={filters.urgency} set={value => setFilters(v => ({ ...v, urgency: value }))} options={urgencyOptions}/><Select label="Call status" value={filters.call_status} set={value => setFilters(v => ({ ...v, call_status: value }))} options={callStates}/><Select label="Direction" value={filters.direction} set={value => setFilters(v => ({ ...v, direction: value }))} options={["inbound", "outbound"]}/>
+      <input aria-label="Property filter" value={filters.property} onChange={e => setFilters(v => ({ ...v, property: e.target.value }))} placeholder="Property" className="h-10 rounded-lg border px-3 text-sm"/>
+      <Select label="Contact" value={filters.contact_id} set={value => setFilters(v => ({ ...v, contact_id: value }))} options={contacts.map(item => item.id)} names={Object.fromEntries(contacts.map(item => [item.id, item.full_name]))}/><Select label="Agent" value={filters.provider_agent_id} set={value => setFilters(v => ({ ...v, provider_agent_id: value }))} options={agents}/><Select label="Outcome" value={filters.call_outcome} set={value => setFilters(v => ({ ...v, call_outcome: value }))} options={outcomes}/><Select label="Follow-up" value={filters.follow_up_status} set={value => setFilters(v => ({ ...v, follow_up_status: value }))} options={["queued", "open", "in_progress", "completed", "none"]}/>
+      <input aria-label="Start date" type="date" value={filters.from} onChange={e => setFilters(v => ({ ...v, from: e.target.value }))} className="h-10 rounded-lg border px-3 text-sm"/><input aria-label="End date" type="date" value={filters.to} onChange={e => setFilters(v => ({ ...v, to: e.target.value }))} className="h-10 rounded-lg border px-3 text-sm"/>
+    </div><div className="mt-3 flex gap-2"><button onClick={() => load()} className="rounded-lg bg-black px-4 py-2 text-xs text-white">Apply filters</button><button onClick={() => { const clear = { q: "", urgency: "", call_status: "", direction: "", property: "", contact_id: "", provider_agent_id: "", call_outcome: "", follow_up_status: "", from: "", to: "" }; setFilters(clear); load(clear); }} className="rounded-lg border px-4 py-2 text-xs">Clear</button></div></section>
 
-  async function updateTicket(call: Call, status: string) {
-    setBusyTicketId(call.id);
-    setError("");
-
-    const res = await fetch(`/api/tickets/${call.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        status,
-        note: notes[call.id] || undefined,
-      }),
-    });
-    const data = await res.json();
-
-    if (!res.ok) {
-      setError(data.error || "Unable to update ticket.");
-      setBusyTicketId(null);
-      return;
-    }
-
-    setNotes((current) => ({ ...current, [call.id]: "" }));
-    await loadCalls();
-    setBusyTicketId(null);
-  }
-
-  async function syncElevenLabs() {
-    setSyncing(true); setError("");
-    const res = await fetch("/api/elevenlabs/sync", { method: "POST" });
-    const data = await res.json();
-    if (!res.ok) setError(data.error || "Unable to synchronize ElevenLabs.");
-    else await loadCalls();
-    setSyncing(false);
-  }
-
-  async function recordManualContact(call: Call) {
-    setBusyTicketId(call.id);
-    setError("");
-
-    const res = await fetch(`/api/tickets/${call.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "manual_contact",
-        note: notes[call.id] || undefined,
-      }),
-    });
-    const data = await res.json();
-
-    if (!res.ok) {
-      setError(data.error || "Unable to record manual vendor contact.");
-      setBusyTicketId(null);
-      return;
-    }
-
-    setNotes((current) => ({ ...current, [call.id]: "" }));
-    await loadCalls();
-    setBusyTicketId(null);
-  }
-
-  async function escalateForReview(ticketId: string) {
-    setBusyTicketId(ticketId);
-    setError("");
-
-    const res = await fetch("/api/escalation", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ticketId }),
-    });
-    const data = await res.json();
-
-    if (!res.ok) setError(data.error || "Unable to create review escalation.");
-    await loadCalls();
-    setBusyTicketId(null);
-  }
-
-  return (
-    <AppShell>
-      <div className="rounded-[24px] border border-black/[0.06] bg-white p-6 md:p-8">
-        <div className="flex flex-wrap items-start justify-between gap-5">
-          <div>
-            <p className="uppercase tracking-[0.28em] text-zinc-400 text-[11px]">
-              Supervised Voice Intake
-            </p>
-            <h1 className="text-[38px] md:text-[52px] font-semibold tracking-tight mt-5">
-              AI Calls
-            </h1>
-            <p className="text-zinc-500 text-[15px] leading-relaxed mt-5 max-w-3xl">
-              ElevenLabs maintenance intake, staff review, vendor recommendations, and human-approved notifications.
-            </p>
-          </div>
-          <button onClick={syncElevenLabs} disabled={syncing} className="h-[42px] px-5 rounded-full bg-black text-white text-[11px] disabled:opacity-50">
-            {syncing ? "SYNCING…" : "SYNC ELEVENLABS"}
-          </button>
-        </div>
-      </div>
-
-      <div className="mt-6 grid gap-3 rounded-[24px] border border-black/[0.06] bg-white p-5 md:grid-cols-6">
-        <input aria-label="Search calls" value={filters.q} onChange={e=>setFilters(v=>({...v,q:e.target.value}))} placeholder="Caller, transcript, property" className="h-11 rounded-xl border px-3 md:col-span-2"/>
-        <select aria-label="Call status filter" value={filters.status} onChange={e=>setFilters(v=>({...v,status:e.target.value}))} className="h-11 rounded-xl border px-3"><option value="">All statuses</option>{TICKET_STATUS_OPTIONS.map(status=><option key={status}>{status}</option>)}</select>
-        <select aria-label="Urgency filter" value={filters.urgency} onChange={e=>setFilters(v=>({...v,urgency:e.target.value}))} className="h-11 rounded-xl border px-3"><option value="">All urgency</option>{["Low","Medium","High","Urgent","Emergency"].map(value=><option key={value}>{value}</option>)}</select>
-        <input aria-label="Start date" type="date" value={filters.from} onChange={e=>setFilters(v=>({...v,from:e.target.value}))} className="h-11 rounded-xl border px-3"/>
-        <input aria-label="Property filter" value={filters.property} onChange={e=>setFilters(v=>({...v,property:e.target.value}))} placeholder="Property" className="h-11 rounded-xl border px-3"/>
-        <button onClick={loadCalls} className="h-11 rounded-xl bg-black px-4 text-sm text-white">Apply filters</button>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 mt-8">
-        <StatCard title="Total Calls" value={calls.length} />
-        <StatCard title="Emergencies" value={calls.filter((call) => call.urgency === "Emergency").length} />
-        <StatCard title="Escalated" value={calls.filter((call) => call.status?.includes("Escalated")).length} />
-        <StatCard title="Assigned" value={calls.filter((call) => call.assigned_vendor_name).length} />
-      </div>
-
-      {error && (
-        <div className="rounded-[24px] border border-red-100 bg-red-50 p-5 mt-8 text-sm text-red-700">
-          {error}
-        </div>
-      )}
-
-      {loading && (
-        <div className="rounded-[24px] border border-black/[0.06] bg-white p-8 mt-8">
-          <p className="text-zinc-500 text-[15px]">Loading operational tickets...</p>
-        </div>
-      )}
-
-      <div className="space-y-5 mt-8">
-        {calls.map((call) => {
-          const statusDraft = statusDrafts[call.id] || call.status || "Needs Review";
-          const dispatchLabel = call.dispatch_status || "Needs Approval";
-          const summary = call.ai_summary || "No AI summary was provided by the signed intake event.";
-          const transcript = call.transcript || "No transcript was provided by the signed intake event.";
-
-          return (
-            <div key={call.id} className="rounded-[24px] border border-black/[0.06] bg-white p-6 md:p-8">
-              <div className="flex flex-wrap items-start justify-between gap-5">
-                <div>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <h2 className="text-[26px] font-semibold tracking-tight">{call.tenant_name}</h2>
-                    {call.urgency === "Emergency" && (
-                      <div className="h-[30px] px-3 rounded-full bg-red-600 text-white text-[10px] flex items-center">
-                        EMERGENCY
-                      </div>
-                    )}
-                  </div>
-                  <p className="text-zinc-500 text-[14px] mt-3">{call.phone || "No phone recorded"}</p>
-                  <p className="text-zinc-400 text-[12px] mt-2">{call.provider || "staff"} · {call.direction || "unknown direction"} · {call.call_status || "unknown status"} · {call.call_duration_seconds != null ? `${call.call_duration_seconds}s` : "duration unavailable"}</p>
-                </div>
-                <div className="flex flex-wrap gap-3">
-                  <StatusPill label={call.urgency} dark />
-                  <StatusPill label={call.status} />
-                  <StatusPill label={dispatchLabel} />
-                </div>
-              </div>
-
-              {call.urgency === "Emergency" && (
-                <div className="rounded-[20px] border border-red-100 bg-red-50 p-5 mt-6 text-sm text-red-800">
-                  Emergency review is unacknowledged until staff records action. LegacyOS does not contact emergency services; external emergency procedures remain required.
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 xl:grid-cols-[1fr_360px] gap-5 mt-7">
-                <div className="space-y-5">
-                  <InfoPanel title="Maintenance Issue">{call.issue}</InfoPanel>
-                  <InfoPanel title="Intake Summary">{summary}</InfoPanel>
-                  <InfoPanel title="Transcript">{transcript}</InfoPanel>
-                  <InfoPanel title="CRM Links">Property: {call.property || "Unassigned"}{"\n"}Contact: {call.contact_id || "Not linked"}{"\n"}Classification: {call.classification || "unknown"}</InfoPanel>
-                  <InfoPanel title="Follow-up">{call.crm_tasks?.length?call.crm_tasks.map(task=>`${task.status}: ${task.title}`).join("\n"):"No follow-up task is open."}</InfoPanel>
-                  {call.recording_available && <a href={call.provider==="twilio"?`/api/calls/${call.id}/twilio-recording`:`/api/calls/${call.id}/audio`} className="inline-flex h-11 items-center rounded-2xl bg-black px-5 text-sm text-white">Play secure recording</a>}
-                </div>
-
-                <div className="rounded-[20px] border border-black/[0.06] bg-[#fafafa] p-5">
-                  <p className="uppercase tracking-[0.22em] text-zinc-400 text-[10px]">Ticket Controls</p>
-                  <p className="text-sm text-zinc-600 mt-4">
-                    Vendor: {call.assigned_vendor_name || "No vendor assigned"}
-                  </p>
-
-                  <label className="block mt-5 text-[12px] text-zinc-500">
-                    Status
-                    <select
-                      value={statusDraft}
-                      onChange={(event) =>
-                        setStatusDrafts((current) => ({ ...current, [call.id]: event.target.value }))
-                      }
-                      className="mt-2 h-[46px] w-full rounded-2xl border border-black/[0.08] bg-white px-4 text-sm outline-none"
-                    >
-                      {TICKET_STATUS_OPTIONS.map((status) => (
-                        <option key={status} value={status}>
-                          {status}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className="block mt-4 text-[12px] text-zinc-500">
-                    Staff note
-                    <textarea
-                      value={notes[call.id] || ""}
-                      onChange={(event) =>
-                        setNotes((current) => ({ ...current, [call.id]: event.target.value }))
-                      }
-                      rows={4}
-                      className="mt-2 w-full rounded-2xl border border-black/[0.08] bg-white p-4 text-sm outline-none"
-                      placeholder="Record the decision, contact attempt, or follow-up."
-                    />
-                  </label>
-
-                  <div className="grid grid-cols-1 gap-3 mt-5">
-                    <button
-                      onClick={() => updateTicket(call, statusDraft)}
-                      disabled={busyTicketId === call.id}
-                      className="h-[46px] rounded-2xl bg-black text-white text-[13px] font-medium disabled:opacity-50"
-                    >
-                      Save Status
-                    </button>
-                    <button
-                      onClick={() => setSelectedTicket(call.id)}
-                      className="h-[46px] rounded-2xl border border-black/[0.08] bg-white text-[13px] font-medium"
-                    >
-                      Review Vendor
-                    </button>
-                    <button
-                      onClick={() => recordManualContact(call)}
-                      disabled={busyTicketId === call.id}
-                      className="h-[46px] rounded-2xl border border-black/[0.08] bg-white text-[13px] font-medium disabled:opacity-50"
-                    >
-                      Manual Contact
-                    </button>
-                    <div className="grid grid-cols-2 gap-3">
-                      <button
-                        onClick={() => updateTicket(call, "Resolved")}
-                        disabled={busyTicketId === call.id}
-                        className="h-[44px] rounded-2xl border border-black/[0.08] bg-white text-[13px] disabled:opacity-50"
-                      >
-                        Resolve
-                      </button>
-                      <button
-                        onClick={() => updateTicket(call, "Open")}
-                        disabled={busyTicketId === call.id}
-                        className="h-[44px] rounded-2xl border border-black/[0.08] bg-white text-[13px] disabled:opacity-50"
-                      >
-                        Reopen
-                      </button>
-                    </div>
-                    <button
-                      onClick={() => escalateForReview(call.id)}
-                      disabled={busyTicketId === call.id}
-                      className="h-[46px] rounded-2xl border border-red-100 bg-red-50 text-red-700 text-[13px] disabled:opacity-50"
-                    >
-                      Emergency Review
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {selectedTicket && (
-        <VendorDispatchModal
-          ticketId={selectedTicket}
-          onClose={() => setSelectedTicket(null)}
-          onComplete={loadCalls}
-        />
-      )}
-    </AppShell>
-  );
+    {loading ? <State title="Loading calls" detail="Reading production call records…"/> : calls.length === 0 ? <State title="No calls yet" detail="If ElevenLabs is configured, import the conversation history to populate Phone CRM." action={<button onClick={sync}>Import calls from ElevenLabs</button>}/> :
+    <section className="mt-5 grid min-h-[720px] overflow-hidden rounded-[24px] border border-black/[.06] bg-white lg:grid-cols-[340px_1fr]">
+      <div className="max-h-[820px] overflow-y-auto border-b border-black/[.06] lg:border-b-0 lg:border-r"><div className="sticky top-0 z-10 border-b bg-white/95 p-4 backdrop-blur"><p className="text-xs text-zinc-500">{calls.length} calls</p></div>{calls.map(call => <button key={call.id} onClick={() => setSelectedId(call.id)} className={`w-full border-b border-black/[.05] p-4 text-left focus:outline-none focus:ring-2 focus:ring-inset focus:ring-emerald-500 ${selectedId === call.id ? "bg-[#f3f8f5]" : "hover:bg-zinc-50"}`}><div className="flex items-center justify-between gap-3"><p className="truncate font-medium">{call.tenant_name || "Unknown caller"}</p><Urgency value={call.urgency}/></div><p className="mt-1 text-xs text-zinc-500">{call.phone || "No phone"} · {call.direction || "Unknown"}</p><p className="mt-2 line-clamp-2 text-sm text-zinc-600">{call.ai_summary || call.issue}</p><div className="mt-3 flex justify-between text-[10px] uppercase text-zinc-400"><span>{call.call_status || "unknown"}</span><span>{formatDate(call.call_started_at || call.created_at)}</span></div></button>)}</div>
+      {selected && <div className="min-w-0 p-5 md:p-7"><div className="flex flex-wrap items-start justify-between gap-4"><div><div className="flex flex-wrap items-center gap-2"><h2 className="text-2xl font-semibold">{selected.tenant_name}</h2><Urgency value={selected.urgency}/></div><p className="mt-2 text-sm text-zinc-500">{selected.phone || "No phone recorded"} · {selected.direction || "Unknown direction"} · {selected.provider || "Unknown provider"}</p></div><div className="flex gap-2"><button disabled={!!busy} onClick={() => saveCall({ followUpStatus: "completed" })} className="rounded-lg border px-3 py-2 text-xs">Mark follow-up complete</button><select aria-label="Correct urgency" value="" onChange={e => e.target.value && correctUrgency(e.target.value)} className="rounded-lg border px-3 py-2 text-xs"><option value="">Correct urgency…</option>{urgencyOptions.map(value => <option key={value}>{value}</option>)}</select></div></div>
+        <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Fact label="Date" value={formatDate(selected.call_started_at || selected.created_at)}/><Fact label="Duration" value={duration(selected.call_duration_seconds)}/><Fact label="Status / outcome" value={`${selected.call_status || "Unknown"} / ${selected.call_outcome || "Unspecified"}`}/><Fact label="Agent" value={selected.provider_agent_id || "Not recorded"}/></div>
+        {selected.failure_reason && <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">Failure: {selected.failure_reason}</div>}
+        <div className="mt-6 grid gap-5 xl:grid-cols-[1fr_320px]"><div className="space-y-5"><Panel title="ALMA summary"><p>{selected.ai_summary || "No ALMA summary is available."}</p></Panel><Panel title="Classification"><div className="flex flex-wrap gap-3"><Urgency value={selected.urgency}/><span className="text-sm text-zinc-500">{selected.classification || "unknown"}{selected.classification_confidence != null ? ` · ${Math.round(selected.classification_confidence * 100)}% confidence` : ""}</span></div><p className="mt-3 text-sm">{selected.classification_reason || "No classification reason was recorded."}</p></Panel><Panel title="Transcript">{selected.transcript_turns?.length ? <div className="max-h-96 space-y-3 overflow-y-auto">{selected.transcript_turns.map((turn, index) => <div key={`${turn.timeInCallSecs}-${index}`} className="grid grid-cols-[70px_1fr] gap-3"><span className="text-[10px] uppercase text-zinc-400">{turn.speaker}<br/>{turn.timeInCallSecs == null ? "" : `${turn.timeInCallSecs.toFixed(1)}s`}</span><p className="text-sm leading-6">{turn.text}</p></div>)}</div> : <p className="whitespace-pre-wrap text-sm leading-6">{selected.transcript || "No transcript was provided."}</p>}</Panel>{selected.recording_available && <Panel title="Secure recording"><audio controls preload="none" className="w-full" src={selected.provider === "twilio" ? `/api/calls/${selected.id}/twilio-recording` : `/api/calls/${selected.id}/audio`}>Secure audio playback is not supported by this browser.</audio><p className="mt-2 text-xs text-zinc-400">Streamed through authenticated LegacyOS; provider credentials are not exposed.</p></Panel>}<Panel title="Activity timeline">{selected.ticket_updates?.length ? <ol className="space-y-4">{selected.ticket_updates.map(item => <li key={item.id} className="border-l-2 border-emerald-200 pl-4"><div className="flex justify-between gap-3"><p className="text-sm font-medium">{item.title}</p><time className="text-[10px] text-zinc-400">{formatDate(item.created_at)}</time></div><p className="mt-1 text-sm text-zinc-500">{item.description || item.type}</p></li>)}</ol> : <p className="text-sm text-zinc-500">No activity has been recorded.</p>}</Panel></div>
+          <aside className="space-y-4"><Panel title="CRM links"><Field label="Employee assignment"><select value={edit.employeeAssignee} onChange={e => setEdit(v => ({ ...v, employeeAssignee: e.target.value }))}><option value="">Unassigned</option>{staff.map(item => <option key={item.id} value={item.id}>{item.full_name}</option>)}</select></Field><Field label="Related contact"><select value={edit.contactId} onChange={e => setEdit(v => ({ ...v, contactId: e.target.value }))}><option value="">Not linked</option>{contacts.map(item => <option key={item.id} value={item.id}>{item.full_name}</option>)}</select></Field><Field label="Related property"><input list="properties" value={edit.property} onChange={e => setEdit(v => ({ ...v, property: e.target.value }))}/><datalist id="properties">{properties.map(item => <option key={item.id} value={item.name || item.address}/>)}</datalist></Field><Fact label="Maintenance ticket" value={selected.id}/></Panel><Panel title="Follow-up"><Field label="Status"><select value={edit.followUpStatus} onChange={e => setEdit(v => ({ ...v, followUpStatus: e.target.value }))}>{["none", "queued", "open", "in_progress", "completed"].map(value => <option key={value}>{value}</option>)}</select></Field><Field label="Outcome"><input value={edit.callOutcome} onChange={e => setEdit(v => ({ ...v, callOutcome: e.target.value }))} placeholder="Resolved, callback needed…"/></Field>{selected.crm_tasks?.map(task => <div key={task.id} className="rounded-lg bg-zinc-50 p-3 text-xs"><p className="font-medium">{task.title}</p><p className="mt-1 text-zinc-400">{task.status} · {formatDate(task.due_at)}</p></div>)}</Panel><Panel title="Internal notes"><textarea rows={6} value={edit.internalNotes} onChange={e => setEdit(v => ({ ...v, internalNotes: e.target.value }))} className="w-full rounded-lg border p-3 text-sm" placeholder="Visible only to staff"/><button onClick={() => saveCall()} disabled={!!busy} className="mt-3 h-10 w-full rounded-lg bg-black text-sm text-white disabled:opacity-50">{busy === "save" ? "Saving…" : "Save call record"}</button></Panel></aside></div>
+      </div>}
+    </section>}
+  </AppShell>;
 }
 
-function InfoPanel({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="rounded-[20px] border border-black/[0.06] bg-[#fafafa] p-5">
-      <p className="uppercase tracking-[0.22em] text-zinc-400 text-[10px]">{title}</p>
-      <p className="text-zinc-600 text-[14px] leading-relaxed mt-4 whitespace-pre-wrap max-h-[240px] overflow-y-auto">
-        {children}
-      </p>
-    </div>
-  );
-}
-
-function StatusPill({ label, dark = false }: { label: string; dark?: boolean }) {
-  return (
-    <div
-      className={`h-[34px] px-4 rounded-full text-[11px] flex items-center ${
-        dark ? "bg-black text-white" : "border border-black/[0.08] bg-[#fafafa] text-zinc-700"
-      }`}
-    >
-      {label}
-    </div>
-  );
-}
-
-function StatCard({ title, value }: { title: string; value: number }) {
-  return (
-    <div className="rounded-[24px] border border-black/[0.06] bg-white p-6">
-      <p className="uppercase tracking-[0.24em] text-zinc-400 text-[10px]">{title}</p>
-      <h2 className="text-[36px] font-semibold tracking-tight mt-5">{value}</h2>
-    </div>
-  );
-}
+function Select({ label, value, set, options, names = {} }: { label: string; value: string; set: (value: string) => void; options: string[]; names?: Record<string, string> }) { return <select aria-label={`${label} filter`} value={value} onChange={e => set(e.target.value)} className="h-10 rounded-lg border px-3 text-sm"><option value="">All {label.toLowerCase()}</option>{options.map(item => <option key={item} value={item}>{names[item] || item.replaceAll("_", " ")}</option>)}</select>; }
+function Urgency({ value }: { value: string }) { return <span className={`rounded-full px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide ${value === "Emergency" ? "bg-red-100 text-red-700" : value === "Urgent" || value === "High" ? "bg-amber-100 text-amber-800" : "bg-emerald-50 text-emerald-700"}`}>{value || "Unknown"}</span>; }
+function Panel({ title, children }: { title: string; children: React.ReactNode }) { return <section className="rounded-xl border border-black/[.06] p-4"><h3 className="mb-4 text-[10px] uppercase tracking-[.2em] text-zinc-400">{title}</h3>{children}</section>; }
+function Fact({ label, value }: { label: string; value: string }) { return <div><p className="text-[10px] uppercase tracking-wide text-zinc-400">{label}</p><p className="mt-1 break-words text-sm">{value}</p></div>; }
+function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="mb-3 block text-xs text-zinc-500">{label}<div className="mt-1 [&_input]:h-10 [&_input]:w-full [&_input]:rounded-lg [&_input]:border [&_input]:px-3 [&_select]:h-10 [&_select]:w-full [&_select]:rounded-lg [&_select]:border [&_select]:px-3">{children}</div></label>; }
+function State({ title, detail, action }: { title: string; detail: string; action?: React.ReactNode }) { return <div className="mt-5 rounded-2xl border border-black/[.06] bg-white p-8 text-center"><h2 className="font-semibold">{title}</h2><p className="mt-2 text-sm text-zinc-500">{detail}</p>{action && <div className="mt-5 [&_button]:rounded-lg [&_button]:bg-black [&_button]:px-4 [&_button]:py-2 [&_button]:text-sm [&_button]:text-white">{action}</div>}</div>; }

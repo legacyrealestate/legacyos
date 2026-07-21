@@ -1,0 +1,68 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import test from "node:test";
+
+const read = (path: string) => fs.readFileSync(path, "utf8");
+const dashboard = read("app/page.tsx");
+const dashboardApi = read("app/api/dashboard/route.ts");
+const calls = read("app/calls/page.tsx");
+const callsApi = read("app/api/calls/route.ts");
+const email = read("app/email/page.tsx");
+const emailApi = read("app/api/email/route.ts");
+const integrations = read("app/integrations/page.tsx");
+const integrationsApi = read("app/api/integrations/route.ts");
+
+test("dashboard metrics are calculated by the authenticated production API", () => {
+  assert.match(dashboardApi, /await requireUser\(\)/);
+  for (const metric of ["callsToday", "callsWeek", "missedFailed", "openEmergencies", "callFollowUps", "emailsAwaitingReply", "draftsAwaitingApproval", "overdueFollowUps"]) assert.match(dashboardApi, new RegExp(metric));
+  assert.match(dashboard, /\/api\/dashboard/);
+  assert.match(dashboard, /callVolume/);
+  assert.match(dashboard, /urgencyDistribution/);
+});
+
+test("Phone CRM exposes production filters and detail loading", () => {
+  for (const filter of ["q", "urgency", "call_status", "direction", "property", "contact_id", "provider_agent_id", "call_outcome", "follow_up_status", "from", "to"]) assert.match(calls, new RegExp(filter));
+  assert.match(callsApi, /ticket_updates\(id,type,title,description,created_at,created_by\)/);
+  assert.match(calls, /Activity timeline/);
+});
+
+test("Phone CRM secure audio and ElevenLabs synchronization are real routes", () => {
+  assert.match(calls, /\/api\/calls\/\$\{selected\.id\}\/audio/);
+  assert.match(calls, /<audio controls preload="none"/);
+  assert.match(calls, /fetch\("\/api\/elevenlabs\/sync", \{ method: "POST" \}\)/);
+  assert.match(calls, /Import calls from ElevenLabs/);
+});
+
+test("shared inbox visibility includes shared connections and active staff", () => {
+  assert.match(emailApi, /shared_with_staff\.eq\.true/);
+  assert.match(emailApi, /from\("profiles"\)[\s\S]*eq\("active", true\)/);
+  assert.match(email, /Shared email office/);
+  assert.match(email, /Mailbox folders/);
+});
+
+test("email thread selection and response controls use provider action routes", () => {
+  assert.match(email, /setSelectedId\(thread\.id\)/);
+  for (const action of ["reply", "reply_all", "forward", "draft", "send"]) assert.match(email, new RegExp(`"${action}"`));
+  assert.match(email, /\/api\/email\/\$\{message\.id\}\/action/);
+  assert.match(email, /Approve and send/);
+  assert.match(email, /Reject draft/);
+  assert.match(email, /Regenerate draft/);
+});
+
+test("integration UI never equates configuration with authentication", () => {
+  assert.match(integrationsApi, /configured:/);
+  assert.match(integrationsApi, /authenticated,/);
+  assert.match(integrationsApi, /verificationStatus/);
+  assert.match(integrations, /Environment variables alone never produce a connected state/);
+  assert.match(integrationsApi, /missing_configuration/);
+  assert.match(integrations, /needs_reconnect/);
+  assert.match(integrations, /permission_denied/);
+  assert.match(integrations, /provider_unavailable/);
+});
+
+test("launch pages contain actionable disconnected, empty, loading, and error states", () => {
+  for (const text of ["Operations data is unavailable", "No calls have been imported", "Loading command center"]) assert.ok(dashboard.includes(text));
+  for (const text of ["No calls yet", "Loading calls", "Synchronization failed"]) assert.ok(calls.includes(text));
+  for (const text of ["Mailbox authorization expired", "No company mailbox is connected", "No synchronized email yet", "Loading shared inbox"]) assert.ok(email.includes(text));
+  for (const text of ["Never synchronized", "Missing credentials", "provider could not be reached"]) assert.ok(integrations.includes(text));
+});

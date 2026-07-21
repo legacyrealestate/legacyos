@@ -19,10 +19,10 @@ export async function GET(req: Request) {
     const page = Math.max(Number(params.get("page")) || 1, 1);
     let query = supabase
       .from("maintenance_tickets")
-      .select("*,crm_tasks(status,title)")
+      .select("*,crm_tasks(id,status,title,due_at,assigned_to),ticket_updates(id,type,title,description,created_at,created_by)")
       .order(params.get("sort") === "oldest" ? "created_at" : params.get("sort") === "urgency" ? "urgency" : "created_at", { ascending: params.get("sort") === "oldest" })
       .range((page - 1) * limit, page * limit - 1);
-    for (const field of ["urgency", "status", "property", "direction"] as const) {
+    for (const field of ["urgency", "status", "property", "direction", "call_status", "provider_agent_id", "call_outcome", "follow_up_status", "employee_assignee", "contact_id"] as const) {
       const value = params.get(field); if (value) query = query.eq(field, value.slice(0, 250));
     }
     const from = params.get("from"), to = params.get("to"), search = params.get("q")?.slice(0, 100);
