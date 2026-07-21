@@ -52,6 +52,9 @@ create table if not exists public.email_messages (
   unique(connection_id, provider_message_id)
 );
 create index if not exists email_threads_recent_idx on public.email_threads(last_message_at desc);
+-- The autonomous-operations migration may have created this shared table first.
+-- Keep this migration independently replayable by adding the indexed column.
+alter table public.email_messages add column if not exists provider_sent_at timestamptz;
 create index if not exists email_messages_thread_idx on public.email_messages(thread_id, provider_sent_at);
 
 create table if not exists public.automation_runs (

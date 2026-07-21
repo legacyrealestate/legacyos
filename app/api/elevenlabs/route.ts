@@ -63,6 +63,14 @@ function transcriptToText(transcript: unknown) {
     .join("\n");
 }
 
+function transcriptToTurns(transcript: unknown) {
+  if (!Array.isArray(transcript)) return [];
+  return transcript.flatMap((item: ElevenLabsTranscriptItem) => {
+    const text = item.message || item.text;
+    return text ? [{ speaker: item.role || "unknown", text, timeInCallSecs: typeof item.time_in_call_secs === "number" ? item.time_in_call_secs : null }] : [];
+  });
+}
+
 export function normalizePayload(payload: Record<string, unknown>) {
   const data =
     (payload.data && typeof payload.data === "object"
@@ -76,7 +84,8 @@ export function normalizePayload(payload: Record<string, unknown>) {
     readPath(data, ["data_collection_results"]) ||
     {};
 
-  const transcript = transcriptToText(readPath(data, ["transcript"]));
+  const rawTranscript = readPath(data, ["transcript"]);
+  const transcript = transcriptToText(rawTranscript);
   const conversationId = firstString(data, [["conversation_id"], ["id"]]);
   const startUnixSecs = firstNumber(data, [["metadata", "start_time_unix_secs"]]);
   const durationSecs = firstNumber(data, [["metadata", "call_duration_secs"]]);
@@ -93,6 +102,8 @@ export function normalizePayload(payload: Record<string, unknown>) {
       ["from"],
     ]),
     transcript,
+    transcriptTurns: transcriptToTurns(rawTranscript),
+    durationSeconds: durationSecs,
     summary:
       firstString(analysis, [["transcript_summary"], ["call_summary"], ["summary"]]) ||
       transcript.slice(0, 500),
@@ -125,6 +136,8 @@ export function normalizePayload(payload: Record<string, unknown>) {
       deriveCallEndedAt(startUnixSecs, durationSecs) ||
       firstString(data, [["metadata", "end_time"], ["end_time"], ["call_ended_at"]]) || null,
     callStatus: firstString(data, [["status"], ["call_status"]]) || "completed",
+    direction: firstString(data, [["direction"], ["metadata", "phone_call", "direction"]]) || "inbound",
+    failureReason: firstString(data, [["failure_reason"], ["error"], ["metadata", "termination_reason"]]),
     twilioCallSid: firstString(data, [["metadata","phone_call","call_sid"],["metadata","phone_call","twilio_call_sid"],["metadata","twilio_call_sid"],["twilio_call_sid"]]),
   };
 }
@@ -156,7 +169,7 @@ export async function POST(req: Request) {
     }
 
     const normalized = normalizePayload(parsed as Record<string, unknown>);
-    if (normalized.eventType !== "post_call_transcription") {
+    if (!["post_call_transcription", "post_call_audio", "call_initiation_failure"].includes(normalized.eventType)) {
       throw new ApiError("bad_request", "Unsupported ElevenLabs event type.");
     }
 
@@ -169,6 +182,11 @@ export async function POST(req: Request) {
     }
 
     const supabase = createServiceSupabaseClient();
+    if (normalized.eventType === "post_call_audio") {
+      await supabase.from("maintenance_tickets").update({ recording_available: true, updated_at: new Date().toISOString() })
+        .eq("provider", "elevenlabs").eq("provider_conversation_id", normalized.conversationId);
+      return apiJson({ success: true, recordingAvailable: true });
+    }
     const { data: ticketId, error: intakeError } = await supabase.rpc("create_or_repair_elevenlabs_intake", {
       payload: {
         conversation_id: normalized.conversationId,
@@ -186,15 +204,25 @@ export async function POST(req: Request) {
         call_started_at: normalized.callStartedAt,
         call_ended_at: normalized.callEndedAt,
         call_status: normalized.callStatus,
+        direction: normalized.direction,
+        failure_reason: normalized.failureReason,
         event_type: normalized.eventType,
       },
     });
 
     if (intakeError) throw new ApiError("server_error", intakeError.message);
     if (typeof ticketId === "string") {
+      const failed = normalized.eventType === "call_initiation_failure" || normalized.callStatus === "failed";
+      await supabase.from("maintenance_tickets").update({
+        transcript_turns: normalized.transcriptTurns,
+        call_outcome: failed ? "failed" : normalized.callStatus,
+        failure_reason: normalized.failureReason,
+        follow_up_status: failed ? "queued" : "none",
+      }).eq("id", ticketId);
       if(normalized.twilioCallSid)await supabase.from("maintenance_tickets").update({twilio_call_sid:normalized.twilioCallSid,secondary_provider_ids:{elevenlabs:normalized.conversationId,twilio:normalized.twilioCallSid},provider_metadata:{twilio_call_sid:normalized.twilioCallSid}}).eq("id",ticketId);
       await persistSafetyClassification(ticketId, `${normalized.summary}\n${normalized.transcript}`);
       await enqueueAlma({ jobType: "call_analysis", entityType: "maintenance_ticket", entityId: ticketId, payload: { text: normalized.summary, action: "analyze" }, idempotencyKey: `call-analysis:${normalized.conversationId}` });
+      if (failed) await enqueueAlma({ jobType: "call_follow_up", entityType: "maintenance_ticket", entityId: ticketId, payload: { reason: normalized.failureReason || "ElevenLabs call failed" }, idempotencyKey: `call-follow-up:${normalized.conversationId}` });
     }
     return apiJson({ success: true, ticketId });
   } catch (error) {

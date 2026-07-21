@@ -3,13 +3,15 @@ import fs from "node:fs";
 import test from "node:test";
 import { PGlite } from "@electric-sql/pglite";
 
-const migrationSql = fs
-  .readFileSync("supabase/migrations/202607170001_pilot_hardening.sql", "utf8")
-  .replace(/create extension if not exists pgcrypto;\r?\n/i, "");
-const operationalMigrationSql = fs.readFileSync(
-  "supabase/migrations/202607200001_operational_platform.sql",
-  "utf8"
-);
+const migrationSqls = fs
+  .readdirSync("supabase/migrations")
+  .filter((name) => name.endsWith(".sql"))
+  .sort()
+  .map((name) =>
+    fs
+      .readFileSync(`supabase/migrations/${name}`, "utf8")
+      .replace(/create extension if not exists pgcrypto;\r?\n/gi, "")
+  );
 
 const ACTOR_ID = "00000000-0000-4000-8000-000000000001";
 const VENDOR_ID = "00000000-0000-4000-8000-000000000002";
@@ -57,8 +59,9 @@ async function setupDb() {
       name text
     );
   `);
-  await db.exec(migrationSql);
-  await db.exec(operationalMigrationSql);
+  for (const migrationSql of migrationSqls) {
+    await db.exec(migrationSql);
+  }
   await db.exec(`insert into auth.users(id) values ('${ACTOR_ID}');`);
   return db;
 }

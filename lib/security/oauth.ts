@@ -3,8 +3,8 @@ import crypto from "node:crypto";
 import { ApiError } from "@/lib/security/api";
 
 export type MailProvider = "google" | "microsoft";
-export const GOOGLE_SCOPES = ["openid", "email", "https://www.googleapis.com/auth/gmail.readonly", "https://www.googleapis.com/auth/gmail.send", "https://www.googleapis.com/auth/gmail.modify"];
-export const MICROSOFT_SCOPES = ["openid", "email", "offline_access", "User.Read", "Mail.Read", "Mail.Send"];
+export const GOOGLE_SCOPES = ["openid", "email", "https://www.googleapis.com/auth/gmail.readonly", "https://www.googleapis.com/auth/gmail.send", "https://www.googleapis.com/auth/gmail.modify", "https://www.googleapis.com/auth/gmail.compose"];
+export const MICROSOFT_SCOPES = ["openid", "email", "offline_access", "User.Read", "Mail.Read", "Mail.ReadWrite", "Mail.Send"];
 
 export function appOrigin() {
   const raw = process.env.NEXT_PUBLIC_APP_URL;

@@ -17,7 +17,6 @@ export async function GET() {
       { id: "supabase", configured: configured(["NEXT_PUBLIC_SUPABASE_URL","NEXT_PUBLIC_SUPABASE_ANON_KEY"]) },
       { id: "openai", configured: configured(["OPENAI_API_KEY"]) },
       { id: "elevenlabs", configured: configured(["ELEVENLABS_API_KEY","ELEVENLABS_AGENT_ID","ELEVENLABS_WEBHOOK_SECRET"]), checkpoint: checkpoint("elevenlabs") },
-      { id: "twilio", configured: configured(["TWILIO_ACCOUNT_SID","TWILIO_AUTH_TOKEN","TWILIO_PHONE_NUMBER"]) },
       { id: "google", configured: configured(["GOOGLE_CLIENT_ID","GOOGLE_CLIENT_SECRET","APP_ENCRYPTION_KEY"]), connection: connection("google") },
       { id: "microsoft", configured: configured(["MICROSOFT_CLIENT_ID","MICROSOFT_CLIENT_SECRET","APP_ENCRYPTION_KEY"]), connection: connection("microsoft") },
     ].map((item) => {const smoke=smokeTests?.find(test=>test.provider===item.id);return { provider: item.id, status: item.connection?.status || (item.configured ? (item.checkpoint?.last_success_at ? "healthy" : item.id === "google" || item.id === "microsoft" ? "needs_authorization" : "configured") : "missing_configuration"), verificationStatus:smoke?.status||"never_tested",lastTestedAt:smoke?.created_at||null, accountEmail: item.connection?.account_email || null, lastSuccess: item.connection?.last_success_at || item.checkpoint?.last_success_at || null, lastError: item.connection?.last_error || item.checkpoint?.last_error || null }});

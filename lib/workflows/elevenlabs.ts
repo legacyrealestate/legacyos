@@ -2,6 +2,7 @@ type ElevenLabsTranscriptItem = {
   role?: string;
   message?: string;
   text?: string;
+  time_in_call_secs?: number;
 };
 
 function readPath(source: unknown, path: string[]) {
@@ -67,7 +68,12 @@ export function normalizeElevenLabsPayload(payload: Record<string, unknown>) {
     readPath(data, ["data_collection_results"]) ||
     {};
 
-  const transcript = transcriptToText(readPath(data, ["transcript"]));
+  const rawTranscript = readPath(data, ["transcript"]);
+  const transcript = transcriptToText(rawTranscript);
+  const transcriptTurns = Array.isArray(rawTranscript) ? rawTranscript.flatMap((item: ElevenLabsTranscriptItem) => {
+    const text = item.message || item.text;
+    return text ? [{ speaker: item.role || "unknown", text, timeInCallSecs: typeof item.time_in_call_secs === "number" ? item.time_in_call_secs : null }] : [];
+  }) : [];
   const conversationId = firstString(data, [["conversation_id"], ["id"]]);
   const startUnixSecs = firstNumber(data, [["metadata", "start_time_unix_secs"]]);
   const durationSecs = firstNumber(data, [["metadata", "call_duration_secs"]]);
@@ -84,6 +90,8 @@ export function normalizeElevenLabsPayload(payload: Record<string, unknown>) {
       ["from"],
     ]),
     transcript,
+    transcriptTurns,
+    durationSeconds: durationSecs,
     summary:
       firstString(analysis, [["transcript_summary"], ["call_summary"], ["summary"]]) ||
       transcript.slice(0, 500),
@@ -116,6 +124,9 @@ export function normalizeElevenLabsPayload(payload: Record<string, unknown>) {
       deriveCallEndedAt(startUnixSecs, durationSecs) ||
       firstString(data, [["metadata", "end_time"], ["end_time"], ["call_ended_at"]]) || null,
     callStatus: firstString(data, [["status"], ["call_status"]]) || "completed",
+    direction: firstString(data, [["direction"], ["metadata", "phone_call", "direction"]]) || "inbound",
+    recordingAvailable: readPath(data, ["has_audio"]) === true || readPath(data, ["metadata", "has_audio"]) === true,
+    failureReason: firstString(data, [["failure_reason"], ["error"], ["metadata", "termination_reason"]]),
     twilioCallSid: firstString(data, [["metadata","phone_call","call_sid"],["metadata","phone_call","twilio_call_sid"],["metadata","twilio_call_sid"],["twilio_call_sid"]]),
   };
 }

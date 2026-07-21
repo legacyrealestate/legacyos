@@ -29,7 +29,7 @@ export async function GET(req: Request, context: { params: Promise<{ provider: s
     const profile = profileResponse.ok ? await profileResponse.json() as Record<string, unknown> : {};
     const accountEmail = String(profile.email || profile.mail || profile.userPrincipalName || "") || null;
     const supabase = createServiceSupabaseClient();
-    const payload: Record<string, unknown> = { user_id: auth.user.id, provider, account_email: accountEmail, scopes: String(token.scope || "").split(" ").filter(Boolean), encrypted_access_token: encryptSecret(token.access_token), access_token_expires_at: new Date(Date.now() + Number(token.expires_in || 3600) * 1000).toISOString(), status: "connected", last_error: null, updated_at: new Date().toISOString() };
+    const payload: Record<string, unknown> = { user_id: auth.user.id, provider, account_email: accountEmail, scopes: String(token.scope || "").split(" ").filter(Boolean), encrypted_access_token: encryptSecret(token.access_token), access_token_expires_at: new Date(Date.now() + Number(token.expires_in || 3600) * 1000).toISOString(), status: "connected", shared_with_staff: true, last_error: null, updated_at: new Date().toISOString() };
     if (typeof token.refresh_token === "string") payload.encrypted_refresh_token = encryptSecret(token.refresh_token);
     const { error } = await supabase.from("provider_connections").upsert(payload, { onConflict: "user_id,provider" });
     if (error) throw new ApiError("server_error", "Unable to save provider connection.");

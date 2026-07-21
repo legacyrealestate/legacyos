@@ -4,7 +4,9 @@
 
 1. Review and run migrations in order:
    - `supabase/migrations/202607170001_pilot_hardening.sql`
-   - `supabase/migrations/202607200001_operational_platform.sql`
+   - `supabase/migrations/202607200001_autonomous_operations.sql`
+   - `supabase/migrations/202607200002_operational_platform.sql`
+   - `supabase/migrations/202607210001_launch_communications_compat.sql`
 2. Create the private `legacy-documents` bucket through the migration or dashboard.
 3. Create the first Supabase Auth user manually.
 4. In SQL, update that user's `profiles` row to `role = 'admin'` and `active = true`.

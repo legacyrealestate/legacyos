@@ -1,5 +1,5 @@
 export type IntegrationState = {
-  id: "supabase" | "openai" | "twilio" | "elevenlabs" | "email";
+  id: "supabase" | "openai" | "elevenlabs" | "email";
   label: string;
   configured: boolean;
   missing: string[];
@@ -35,22 +35,16 @@ export function getIntegrationStates(): IntegrationState[] {
       "ALMA operations chat, call insights, and email drafting"
     ),
     state(
-      "twilio",
-      "Twilio",
-      ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_PHONE_NUMBER", "NEXT_PUBLIC_APP_URL"],
-      "SMS delivery and signed provider status callbacks"
-    ),
-    state(
       "elevenlabs",
       "ElevenLabs",
-      ["ELEVENLABS_WEBHOOK_SECRET", "ELEVENLABS_AGENT_ID"],
-      "Signed AI phone-call transcripts and structured intake"
+      ["ELEVENLABS_API_KEY", "ELEVENLABS_WEBHOOK_SECRET", "ELEVENLABS_AGENT_ID", "NEXT_PUBLIC_APP_URL"],
+      "Canonical signed phone-call ingestion, history sync, transcripts, and secure audio"
     ),
     state(
       "email",
-      "Resend Email",
-      ["RESEND_API_KEY", "RESEND_WEBHOOK_SECRET", "EMAIL_FROM"],
-      "Inbound email, ALMA reply drafts, and approved or policy-safe replies"
+      "Gmail / Microsoft 365",
+      ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "MICROSOFT_CLIENT_ID", "MICROSOFT_CLIENT_SECRET", "APP_ENCRYPTION_KEY", "NEXT_PUBLIC_APP_URL"],
+      "Shared OAuth inboxes, provider drafts and sends, and ALMA email intelligence"
     ),
   ];
 }

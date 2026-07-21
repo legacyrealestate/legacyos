@@ -39,10 +39,10 @@ export function buildMime(input: { to: string[]; cc?: string[]; subject: string;
 
 async function sourceContext(userId: string, messageId: string) {
   const db = createServiceSupabaseClient();
-  const { data, error } = await db.from("email_messages").select("id,provider_message_id,internet_message_id,references_header,sender,recipients,cc,subject,thread_id,connection_id,email_threads(provider_thread_id),provider_connections!inner(id,user_id,provider,encrypted_access_token,encrypted_refresh_token,access_token_expires_at)").eq("id", messageId).single();
+  const { data, error } = await db.from("email_messages").select("id,provider_message_id,internet_message_id,references_header,sender,recipients,cc,subject,thread_id,connection_id,email_threads(provider_thread_id),provider_connections!inner(id,user_id,provider,encrypted_access_token,encrypted_refresh_token,access_token_expires_at,shared_with_staff)").eq("id", messageId).single();
   if (error || !data) throw new ApiError("not_found", "Source email was not found.");
   const connection = data.provider_connections as unknown as Connection;
-  if (connection.user_id !== userId) throw new ApiError("forbidden", "Email access denied.");
+  if (connection.user_id !== userId && !connection.shared_with_staff) throw new ApiError("forbidden", "Email access denied.");
   return { db, data: data as Source, connection, threadId: (data.email_threads as unknown as { provider_thread_id: string }).provider_thread_id };
 }
 
