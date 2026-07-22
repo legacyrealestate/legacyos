@@ -32,8 +32,8 @@ test("all non-public API routes enforce server-side auth in the route file", () 
   assert.deepEqual(unguarded.map((route) => route.apiPath), []);
 });
 
-test("public API allowlist is limited to signed provider webhooks", () => {
-  assert.deepEqual([...PUBLIC_API_ROUTES].sort(), ["/api/elevenlabs", "/api/email/webhook", "/api/twilio/status", "/api/twilio/voice/call-status", "/api/twilio/voice/inbound", "/api/twilio/voice/outbound", "/api/twilio/voice/recording", "/api/twilio/voice/transcription"].sort());
+test("public API allowlist is limited to authentication endpoints and signed provider webhooks", () => {
+  assert.deepEqual([...PUBLIC_API_ROUTES].sort(), ["/api/auth/logout", "/api/auth/session", "/api/elevenlabs", "/api/email/webhook", "/api/twilio/status", "/api/twilio/voice/call-status", "/api/twilio/voice/inbound", "/api/twilio/voice/outbound", "/api/twilio/voice/recording", "/api/twilio/voice/transcription"].sort());
 });
 
 test("public page allowlist includes the Supabase auth callback", () => {

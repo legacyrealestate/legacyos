@@ -64,3 +64,6 @@ The ElevenLabs and Resend endpoints reject unsigned or stale requests. The Twili
 - `ENABLE_OUTBOUND_COMMUNICATIONS=true`: enables Twilio SMS; otherwise vendor notifications remain preview-only.
 
 `EMAIL_AUTOREPLY_MODE=send` sends only when `AUTONOMY_MODE=autopilot`. Urgent, emergency, legal, and human-requested messages remain in review.
+# Autonomous shared inbox
+
+Gmail and Microsoft imports enqueue one idempotent intake job per provider message. ALMA suppresses loops and automated senders, normalizes contacts, classifies mail, creates lead follow-ups or maintenance tickets, and creates a provider-threaded draft for routine actionable messages. Emergency, legal, fair-housing, financial-dispute, escalated, and explicit-human-request messages remain human-reviewed. See `DEPLOYMENT.md` for scopes, cron schedules, migration order, and credential-dependent launch checks.

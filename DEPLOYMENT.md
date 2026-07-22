@@ -46,3 +46,12 @@ Schedule `GET /api/cron/email` with `Authorization: Bearer $CRON_SECRET`; five m
 10. Confirm the cron invocations reject a missing or incorrect `CRON_SECRET`.
 
 Credential-dependent smoke tests are intentionally non-destructive. Provider send, real webhook delivery, OAuth consent, audio retrieval, and cron scheduling require manual verification in the production provider accounts.
+# Autonomous email office
+
+Apply migrations in filename order, ending with `202607220001_autonomous_email_office.sql`. Do not apply that migration before `202607210001_launch_communications_compat.sql`.
+
+Configure Gmail with `openid email profile https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/gmail.compose https://www.googleapis.com/auth/gmail.send`; its redirect is `https://YOUR_DOMAIN/api/oauth/google/callback`. Configure Microsoft with `openid email offline_access User.Read Mail.Read Mail.ReadWrite Mail.Send`; its redirect is `https://YOUR_DOMAIN/api/oauth/microsoft/callback`.
+
+Set `CRON_SECRET` in the deployment environment. `vercel.json` runs `/api/cron/email` daily at 06:15 UTC and `/api/cron/alma` daily at 06:30 UTC. Vercel supplies `Authorization: Bearer CRON_SECRET`; external schedulers must do the same. The email route imports and immediately processes up to 50 ready jobs, while the ALMA route repairs backlog and expired locks. Environment variables alone do not run jobs.
+
+Keep `EMAIL_AUTOREPLY_MODE=draft` for launch. Sending requires `EMAIL_AUTOREPLY_MODE=send`, `AUTONOMY_MODE=autopilot`, `ENABLE_OUTBOUND_COMMUNICATIONS=true`, confidence at or above `EMAIL_AUTOREPLY_MIN_CONFIDENCE`, and every deterministic safety gate to pass. `EMAIL_THREAD_REPLY_RATE_LIMIT` defaults to one automated reply per thread per hour. Verify with non-production Gmail and Microsoft tenants: OAuth refresh/revocation, initial and delta imports, provider-threaded drafts, safe attachments, approval, retry/dead-letter recovery, shared staff visibility, and reconnect state. Never use live resident messages for initial verification.

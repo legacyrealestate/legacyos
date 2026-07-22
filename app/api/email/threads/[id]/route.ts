@@ -1,6 +1,7 @@
 import { apiError, apiJson, ApiError } from "@/lib/security/api";
 import { requireUser } from "@/lib/security/auth";
 import { createServiceSupabaseClient } from "@/lib/supabase/server";
+import { EMAIL_CLASSIFICATIONS } from "@/lib/workflows/email-intake-policy";
 
 const statuses = new Set(["Open", "Drafted", "Replied", "Closed", "Needs Review"]);
 
@@ -32,6 +33,13 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
       update.status = body.status;
     }
     if (body.followUpAt === null || typeof body.followUpAt === "string") update.follow_up_at = body.followUpAt;
+    if(typeof body.primaryClassification==="string"){
+      if(!EMAIL_CLASSIFICATIONS.includes(body.primaryClassification as typeof EMAIL_CLASSIFICATIONS[number]))throw new ApiError("bad_request","Invalid email classification.");
+      if(typeof body.correctionReason!=="string"||body.correctionReason.trim().length<3)throw new ApiError("bad_request","A correction reason is required.");
+      update.primary_classification=body.primaryClassification;update.classifications=[body.primaryClassification];update.classification_explanation=`Staff correction: ${body.correctionReason.trim().slice(0,500)}`;update.automation_decision="staff_corrected";
+    }
+    if(body.ticketId===null)update.ticket_id=null;
+    else if(typeof body.ticketId==="string") {const{data:ticket}=await db.from("maintenance_tickets").select("id").eq("id",body.ticketId).maybeSingle();if(!ticket)throw new ApiError("bad_request","Maintenance ticket was not found.");update.ticket_id=body.ticketId;}
     const { data, error } = await db.from("email_threads").update(update).eq("id", id).select("*").single();
     if (error) throw new ApiError("server_error", "Unable to update email thread.");
     await db.from("audit_logs").insert({ actor_id: auth.user.id, action: "email.thread_updated", entity_type: "email_thread", entity_id: id, detail: { fields: Object.keys(update).filter(key => key !== "updated_at") } });

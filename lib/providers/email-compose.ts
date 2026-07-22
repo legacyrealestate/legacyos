@@ -87,7 +87,7 @@ async function executeEmailAction(actionId: string, actorId: string, approved: b
     const token = await refreshEmailToken(connection), to = addresses(input.to), cc = addresses(input.cc), subject = input.subject || String(data.subject || "");
     let result: Record<string, unknown> = {};
     if (connection.provider === "google") {
-      const replying = input.action === "reply" || input.action === "reply_all";
+      const replying = input.action === "reply" || input.action === "reply_all" || input.action === "draft";
       const mime = buildMime({ to, cc, subject, body: input.body, inReplyTo: replying ? String(data.internet_message_id || "") : null, references: replying ? [String(data.references_header || ""), String(data.internet_message_id || "")].filter(Boolean).join(" ") : null, attachments: input.attachments });
       const message = { raw: Buffer.from(mime).toString("base64url"), threadId: replying ? threadId : undefined };
       if (input.action === "draft") result = await emailProviderJson("https://gmail.googleapis.com/gmail/v1/users/me/drafts", token, { method: "POST", body: JSON.stringify({ message }) });
@@ -110,6 +110,11 @@ async function executeEmailAction(actionId: string, actorId: string, approved: b
         for(const item of input.attachments||[]){if(Buffer.from(item.contentBase64,"base64").length>3*1024*1024)throw new ApiError("bad_request","Microsoft attachments must be 3 MiB or smaller.");await emailProviderJson(`https://graph.microsoft.com/v1.0/me/messages/${draftId}/attachments`,token,{method:"POST",body:JSON.stringify({"@odata.type":"#microsoft.graph.fileAttachment",name:clean(item.filename),contentType:clean(item.mimeType),contentBytes:item.contentBase64.replace(/\s/g,"")})});}
         await emailProviderJson(`https://graph.microsoft.com/v1.0/me/messages/${draftId}/send`, token, { method: "POST" });
         result = draft;
+      } else if(input.action === "draft") {
+        const draft=await emailProviderJson(`https://graph.microsoft.com/v1.0/me/messages/${graphId}/createReply`,token,{method:"POST",body:JSON.stringify({})});
+        const draftId=encodeURIComponent(String(draft.id));
+        result=await emailProviderJson(`https://graph.microsoft.com/v1.0/me/messages/${draftId}`,token,{method:"PATCH",body:JSON.stringify({subject,body:content,toRecipients:recipientObjects(to),ccRecipients:recipientObjects(cc)})});
+        if(!result.id)result={...result,id:String(draft.id)};
       } else {
         const message = { subject, body: content, toRecipients: recipientObjects(to), ccRecipients: recipientObjects(cc), attachments: (input.attachments || []).map((item) => ({ "@odata.type": "#microsoft.graph.fileAttachment", name: clean(item.filename), contentType: clean(item.mimeType), contentBytes: item.contentBase64.replace(/\s/g, "") })) };
         if (input.action === "draft") result = await emailProviderJson("https://graph.microsoft.com/v1.0/me/messages", token, { method: "POST", body: JSON.stringify(message) });
