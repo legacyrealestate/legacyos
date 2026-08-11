@@ -1,7 +1,7 @@
 import { ApiError, apiError, apiJson } from "@/lib/security/api";
 import { requireAdmin, requireUser } from "@/lib/security/auth";
 import { safeFilename } from "@/lib/security/validation";
-import { indexKnowledgeSource, isKnowledgeFileType, KNOWLEDGE_BUCKET } from "@/lib/knowledge";
+import { indexKnowledgeSource, isKnowledgeFileType, knowledgeMimeType, KNOWLEDGE_BUCKET } from "@/lib/knowledge";
 import { createServiceSupabaseClient } from "@/lib/supabase/server";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -30,16 +30,17 @@ export async function POST(req: Request) {
     const rawCategory = form.get("category");
     if (!(file instanceof File)) throw new ApiError("bad_request", "Choose a knowledge file to upload.");
     if (file.size > MAX_FILE_SIZE) throw new ApiError("bad_request", "Knowledge files are limited to 10 MB.");
-    if (!isKnowledgeFileType(file)) throw new ApiError("bad_request", "Use a PDF, DOCX, TXT, Markdown, CSV, or JSON file. Images require OCR configuration.");
-    const category = typeof rawCategory === "string" && rawCategory.trim() ? rawCategory.trim().slice(0, 80) : "Policies";
+    if (!isKnowledgeFileType(file)) throw new ApiError("bad_request", "Use a PDF, DOCX, XLSX, TXT, Markdown, CSV, JSON, JPG, PNG, or WebP file.");
+    const category = typeof rawCategory === "string" && rawCategory.trim() ? rawCategory.trim().slice(0, 80) : "Auto-detect";
     const cleanName = safeFilename(file.name);
     const storagePath = `uploads/${crypto.randomUUID()}-${cleanName}`;
     const db = createServiceSupabaseClient();
-    const uploaded = await db.storage.from(KNOWLEDGE_BUCKET).upload(storagePath, file, { contentType: file.type || "application/octet-stream", upsert: false });
+    const mimeType = knowledgeMimeType(file);
+    const uploaded = await db.storage.from(KNOWLEDGE_BUCKET).upload(storagePath, file, { contentType: mimeType, upsert: false });
     if (uploaded.error) throw new ApiError("server_error", uploaded.error.message);
     const { data: source, error } = await db.from("knowledge_sources").insert({
       title: cleanName.replace(/\.[^.]+$/, ""), category, storage_path: storagePath, original_filename: cleanName,
-      mime_type: file.type || "text/plain", byte_size: file.size, created_by: auth.user.id,
+      mime_type: mimeType, byte_size: file.size, created_by: auth.user.id,
     }).select("id").single();
     if (error || !source) {
       await db.storage.from(KNOWLEDGE_BUCKET).remove([storagePath]);
