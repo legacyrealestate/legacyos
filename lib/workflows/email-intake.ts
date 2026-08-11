@@ -1,8 +1,9 @@
 import "server-only";
 import { ApiError } from "@/lib/security/api";
+import { generateEmailDraft } from "@/lib/ai/alma";
 import { createServiceSupabaseClient } from "@/lib/supabase/server";
 import { requestEmailAction } from "@/lib/providers/email-compose";
-import { canAutoSend,classifyEmail,extractContact,parseMailbox,suppressionReason,textOnly,type SafeHeaders } from "@/lib/workflows/email-intake-policy";
+import { classifyEmail,extractContact,parseMailbox,suppressionReason,textOnly,type SafeHeaders } from "@/lib/workflows/email-intake-policy";
 
 const now=()=>new Date().toISOString();
 export async function processEmailIntake(messageId:string){
@@ -35,13 +36,13 @@ export async function processEmailIntake(messageId:string){
     await db.from("email_leads").upsert({thread_id:thread.id,contact_id:contact.id,source_message_id:messageId,desired_property:thread.property,unit_type:extracted.unit,status:"New",next_follow_up_at:new Date(Date.now()+86400000).toISOString()},{onConflict:"thread_id"});
     await db.from("crm_tasks").upsert({title:"Follow up with email lead",description:"Verify availability, pricing, policies, and showing options before replying.",priority:"routine",crm_contact_id:contact.id,due_at:new Date(Date.now()+86400000).toISOString(),idempotency_key:`email-lead-followup:${thread.id}`},{onConflict:"idempotency_key",ignoreDuplicates:true});
   }
-  const threadMessageIds=(await db.from("email_messages").select("id").eq("thread_id",thread.id)).data?.map(item=>item.id)||[];
-  const recentOutbound=threadMessageIds.length?(await db.from("email_outbound_actions").select("id",{count:"exact",head:true}).in("source_message_id",threadMessageIds).in("status",["sending","sent"]).gte("created_at",new Date(Date.now()-3600_000).toISOString())).count||0:0;
-  const autoSend=canAutoSend({classification:classification.primary,confidence:classification.confidence,requiresHuman:classification.requiresHuman,automationDisabled:thread.automation_disabled,headers,sender:message.sender,ownAddresses:[connection.account_email||""],threadOutboundLastHour:recentOutbound});
   const actionable=classification.primary!=="General";
   let outbound:Record<string,unknown>|null=null;
-  if(actionable){const draft=classification.primary==="Lead/leasing inquiry"?"Thank you for your interest. Our team will verify current availability, pricing, policies, and showing options and follow up with accurate details.":classification.classifications.includes("Maintenance request")||classification.classifications.includes("Emergency maintenance")?"Thank you for letting us know. We have recorded your request for staff review. If there is immediate danger, please follow your established emergency procedures and contact the appropriate emergency service.":"Thank you for your message. Our team has received it and will review the details before following up.";outbound=await requestEmailAction(connection.user_id,messageId,{action:autoSend?"reply":"draft",to:[sender.email],body:draft,idempotencyKey:`email-auto-${messageId}-${autoSend?"reply":"draft"}`});}
-  const decision=classification.requiresHuman?"human_review_required":autoSend?"auto_sent":actionable?"draft_created":"no_reply_needed";
+  if(actionable){
+    const draft=await generateEmailDraft({subject:String(message.subject||""),body,contactName:contact.full_name,property:thread.property});
+    outbound=await requestEmailAction(connection.user_id,messageId,{action:"draft",to:[sender.email],body:draft,idempotencyKey:`email-draft-${messageId}`});
+  }
+  const decision=classification.requiresHuman?"human_review_required":actionable?"draft_created":"no_reply_needed";
   await Promise.all([db.from("email_threads").update({contact_id:contact.id,ticket_id:ticketId||undefined,primary_classification:classification.primary,classifications:classification.classifications,classification_confidence:classification.confidence,classification_explanation:classification.explanation,extracted_fields:extracted,urgency:classification.urgency,automation_decision:decision,automation_reason:classification.requiresHuman?"deterministic safety policy":"routine intake policy",status:classification.requiresHuman?"Needs Review":actionable?"Drafted":"Open",last_processing_success_at:now()}).eq("id",thread.id),db.from("email_messages").update({intake_state:"completed",processed_at:now()}).eq("id",messageId),db.from("email_intake_jobs").update({status:classification.requiresHuman?"waiting_approval":"completed",decision:{classification:classification.primary,decision,contactId:contact.id,ticketId},last_error:null,updated_at:now()}).eq("message_id",messageId),db.from("audit_logs").insert({action:"email_intake_processed",entity_type:"email_thread",entity_id:thread.id,detail:{messageId,classification:classification.primary,confidence:classification.confidence,decision,contactId:contact.id,ticketId,outboundActionCreated:Boolean(outbound)}})]);
   return{status:classification.requiresHuman?"waiting_approval":"completed",decision};
 }

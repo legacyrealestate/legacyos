@@ -57,8 +57,9 @@ export async function requestEmailAction(userId: string, messageId: string, inpu
   const ctx = await sourceContext(userId, messageId);
   const existing = await ctx.db.from("email_outbound_actions").select("id,status,provider_message_id").eq("idempotency_key", input.idempotencyKey).maybeSingle();
   if (existing.data) return { success: existing.data.status === "sent", idempotent: true, action: existing.data };
-  const { data: settings } = await ctx.db.from("alma_settings").select("mode,enabled_workflows").eq("id", true).single();
-  const needsApproval = !["draft", "draft_update"].includes(input.action) && (settings?.mode !== "execute_low_risk" || !settings.enabled_workflows?.includes("email_send"));
+  // A provider draft is safe to create. Every action that can deliver external email
+  // stays in an explicit waiting-for-approval state, regardless of ALMA mode.
+  const needsApproval = !["draft", "draft_update"].includes(input.action);
   const recipients = input.to?.length ? input.to : input.action === "reply" ? [senderAddress(ctx.data.sender)] : input.action === "reply_all" ? [senderAddress(ctx.data.sender), ...((ctx.data.recipients as string[]) || [])] : [];
   const request = { ...input, to: addresses(recipients), attachments: input.attachments || [] };
   if (!request.to.length && input.action !== "draft") throw new ApiError("bad_request", "At least one valid recipient is required.");

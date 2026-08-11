@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { apiError, ApiError } from "@/lib/security/api";
-import { requireUser } from "@/lib/security/auth";
+import { requireAdmin } from "@/lib/security/auth";
 import { encryptSecret } from "@/lib/security/encryption";
 import { appOrigin, oauthRedirect, type MailProvider } from "@/lib/security/oauth";
 import { createServiceSupabaseClient } from "@/lib/supabase/server";
 
 export async function GET(req: Request, context: { params: Promise<{ provider: string }> }) {
   try {
-    const auth = await requireUser();
+    const auth = await requireAdmin();
     const { provider: raw } = await context.params;
     if (raw !== "google" && raw !== "microsoft") throw new ApiError("bad_request", "Unsupported provider.");
     const provider: MailProvider = raw;

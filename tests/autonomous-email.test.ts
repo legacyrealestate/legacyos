@@ -25,6 +25,7 @@ test("automatic sends require every safety gate",()=>{
 });
 test("provider sync, ALMA recovery, and cron are automatic and idempotent",()=>{
   const provider=fs.readFileSync("lib/providers/email.ts","utf8"),alma=fs.readFileSync("lib/workflows/alma.ts","utf8"),cron=fs.readFileSync("app/api/cron/email/route.ts","utf8");
-  assert.match(provider,/email_intake_jobs/);assert.match(provider,/email-intake:\$\{messageId\}/);assert.match(provider,/ignoreDuplicates:true/);assert.match(alma,/Recovered expired worker lock/);assert.match(alma,/processEmailIntake/);assert.match(cron,/runAlma\(50\)/);
+  assert.match(provider,/email_intake_jobs/);assert.match(provider,/email-intake:\$\{messageId\}/);assert.match(provider,/ignoreDuplicates:true/);assert.match(provider,/body_html/);assert.match(provider,/attachments\?\$select=id,name,contentType,size,isInline/);assert.match(alma,/Recovered expired worker lock/);assert.match(alma,/processEmailIntake/);assert.match(cron,/runAlma\(50\)/);
 });
 test("migration adds protected autonomous email entities",()=>{const sql=fs.readFileSync("supabase/migrations/202607220001_autonomous_email_office.sql","utf8");for(const value of["email_intake_jobs","email_leads","email_contact_provenance","enable row level security","normalized_email_unique"])assert.match(sql,new RegExp(value))});
+test("email intake creates ALMA drafts and never auto-sends",()=>{const intake=fs.readFileSync("lib/workflows/email-intake.ts","utf8"),compose=fs.readFileSync("lib/providers/email-compose.ts","utf8");assert.match(intake,/generateEmailDraft/);assert.match(intake,/action:"draft"/);assert.doesNotMatch(intake,/action:autoSend/);assert.match(compose,/const needsApproval = !\["draft", "draft_update"\]\.includes\(input\.action\)/)});

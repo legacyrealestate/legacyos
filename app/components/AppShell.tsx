@@ -92,6 +92,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     { label: "Properties", href: "/properties", icon: Building2 },
     { label: "Vendors", href: "/vendors", icon: Users },
     { label: "Documents", href: "/documents", icon: FileText },
+    { label: "Knowledge", href: "/knowledge", icon: Bot },
     { label: "Operations", href: "/operations", icon: Home },
     { label: "Integrations", href: "/integrations", icon: PlugZap },
     { label: "Roadmap", href: "/roadmap", icon: FileText },

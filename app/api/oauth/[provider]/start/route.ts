@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { apiError } from "@/lib/security/api";
-import { requireUser } from "@/lib/security/auth";
+import { requireAdmin } from "@/lib/security/auth";
 import { GOOGLE_SCOPES, MICROSOFT_SCOPES, oauthRedirect, pkce, randomState, type MailProvider } from "@/lib/security/oauth";
 
 export async function GET(_req: Request, context: { params: Promise<{ provider: string }> }) {
   try {
-    await requireUser();
+    await requireAdmin();
     const { provider: raw } = await context.params;
     if (raw !== "google" && raw !== "microsoft") return NextResponse.json({ success: false, code: "bad_request", error: "Unsupported provider." }, { status: 400 });
     const provider: MailProvider = raw;
