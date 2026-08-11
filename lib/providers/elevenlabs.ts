@@ -9,18 +9,26 @@ const BASE = "https://api.elevenlabs.io/v1/convai/conversations";
 type Fetcher = typeof fetch;
 
 async function request(path: string, fetcher: Fetcher) {
-  const key = process.env.ELEVENLABS_API_KEY;
+  const key = process.env.ELEVENLABS_API_KEY?.trim();
   if (!key) throw new ApiError("missing_configuration", "ELEVENLABS_API_KEY is not configured.");
   for(let attempt=0;attempt<4;attempt++){
     const response = await fetcher(`${BASE}${path}`, { headers: { "xi-api-key": key }, cache: "no-store" });
     if(response.ok)return response;
-    if(response.status!==429&&response.status<500)throw new ApiError("provider_failure",`ElevenLabs request failed (${response.status}).`);
+    if(response.status!==429&&response.status<500){
+      const raw = (await response.text()).slice(0, 500);
+      let detail = "";
+      try { const parsed = JSON.parse(raw) as { detail?: unknown; message?: unknown }; detail = typeof parsed.detail === "string" ? parsed.detail : typeof parsed.message === "string" ? parsed.message : ""; } catch { detail = raw.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim(); }
+      throw new ApiError("provider_failure", `ElevenLabs rejected the sync request (${response.status})${detail ? `: ${detail}` : "."}`);
+    }
     if(attempt<3)await new Promise(resolve=>setTimeout(resolve,Math.min(4000,250*2**attempt)));
   }
   throw new ApiError("provider_failure","ElevenLabs request failed after retries.");
 }
 
 export async function syncElevenLabs(fetcher: Fetcher = fetch) {
+  const agentId = process.env.ELEVENLABS_AGENT_ID?.trim();
+  if (!agentId) throw new ApiError("missing_configuration", "ELEVENLABS_AGENT_ID is not configured.");
+  if (!/^(agent_|seng_)/.test(agentId)) throw new ApiError("missing_configuration", "ELEVENLABS_AGENT_ID must start with agent_ or seng_.");
   const db = createServiceSupabaseClient();
   const globalOwner = "00000000-0000-0000-0000-000000000000";
   const checkpointResult = await db.from("sync_checkpoints").select("cursor,checkpoint").eq("provider", "elevenlabs").eq("owner_id", globalOwner).eq("stream", "conversations").maybeSingle();
@@ -32,7 +40,7 @@ export async function syncElevenLabs(fetcher: Fetcher = fetch) {
   const seenCursors = new Set<string>();
   do {
     const query = new URLSearchParams({ page_size: "100", summary_mode: "include" });
-    if (process.env.ELEVENLABS_AGENT_ID) query.set("agent_id", process.env.ELEVENLABS_AGENT_ID);
+    query.set("agent_id", agentId);
     if (!cursor && startAfter) query.set("call_start_after_unix", String(Math.max(0, startAfter - 1)));
     if (cursor) query.set("cursor", cursor);
     const list = await (await request(`?${query}`, fetcher)).json() as { conversations?: Array<Record<string, unknown>>; has_more?: boolean; next_cursor?: string | null };

@@ -7,19 +7,98 @@ import { useEffect, useMemo, useRef, useState } from "react";
 type Citation = { type: string; label: string; excerpt: string };
 type Message = { id: string; role: "user" | "assistant"; content: string; citations?: Citation[] };
 type Chat = { id: string; title: string; updatedAt: number; messages: Message[] };
-const key = "legacyos-alma-chats-v1";
-const createChat = (): Chat => ({ id: crypto.randomUUID(), title: "New conversation", updatedAt: Date.now(), messages: [{ id: crypto.randomUUID(), role: "assistant", content: "I’m ALMA. Ask about calls, maintenance, vendors, email, or Knowledge. I will cite the records used and will not claim that I sent or changed something unless staff approves it." }] });
+const storageKey = "legacyos-alma-chats-v2";
+const welcome = "I can help you review operations, investigate a call or email, find a vendor, or answer from Knowledge. I will show the records I used.";
+const createChat = (): Chat => ({ id: crypto.randomUUID(), title: "New conversation", updatedAt: Date.now(), messages: [{ id: crypto.randomUUID(), role: "assistant", content: welcome }] });
+
+function readResponse(response: Response, raw: string) {
+  try { return JSON.parse(raw) as { error?: string; message?: string; citations?: Citation[] }; }
+  catch {
+    if (response.status === 401 || response.status === 403) throw new Error("Your LegacyOS session has expired. Sign in again, then resend your message.");
+    throw new Error("ALMA is temporarily unavailable. Check the Vercel deployment and its Supabase/OpenAI variables.");
+  }
+}
 
 export default function AiPage() {
-  const [chats, setChats] = useState<Chat[]>([]), [activeId, setActiveId] = useState(""), [input, setInput] = useState(""), [loading, setLoading] = useState(false), [error, setError] = useState("");
-  const end = useRef<HTMLDivElement>(null);
-  useEffect(() => { const timer = window.setTimeout(() => { const saved = localStorage.getItem(key); const restored = saved ? JSON.parse(saved) as Chat[] : []; const initial = restored.length ? restored : [createChat()]; setChats(initial); setActiveId(initial[0].id); }); return () => window.clearTimeout(timer); }, []);
-  useEffect(() => { if (chats.length) localStorage.setItem(key, JSON.stringify(chats)); }, [chats]);
-  useEffect(() => { end.current?.scrollIntoView({ behavior: "smooth" }); }, [activeId, chats, loading]);
+  const [chats, setChats] = useState<Chat[]>([]);
+  const [activeId, setActiveId] = useState("");
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const bottom = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      try {
+        const stored = localStorage.getItem(storageKey);
+        const saved = stored ? JSON.parse(stored) as Chat[] : [];
+        const initial = saved.length ? saved : [createChat()];
+        setChats(initial);
+        setActiveId(initial[0].id);
+      } catch {
+        const initial = [createChat()];
+        setChats(initial);
+        setActiveId(initial[0].id);
+      }
+    });
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => { if (chats.length) localStorage.setItem(storageKey, JSON.stringify(chats)); }, [chats]);
+  useEffect(() => { bottom.current?.scrollIntoView({ behavior: "smooth" }); }, [activeId, chats, loading]);
   const active = useMemo(() => chats.find((chat) => chat.id === activeId) || chats[0], [activeId, chats]);
-  const update = (id: string, fn: (chat: Chat) => Chat) => setChats((items) => items.map((chat) => chat.id === id ? fn(chat) : chat).sort((a, b) => b.updatedAt - a.updatedAt));
-  function newChat() { const chat = createChat(); setChats((items) => [chat, ...items]); setActiveId(chat.id); setInput(""); setError(""); }
-  function deleteChat(id: string) { setChats((items) => { const next = items.filter((chat) => chat.id !== id); const safe = next.length ? next : [createChat()]; setActiveId(safe[0].id); return safe; }); }
-  async function send() { const text = input.trim(); if (!text || !active || loading) return; const user: Message = { id: crypto.randomUUID(), role: "user", content: text }; const history = [...active.messages, user]; setInput(""); setError(""); update(active.id, (chat) => ({ ...chat, title: chat.title === "New conversation" ? text.slice(0, 42) : chat.title, updatedAt: Date.now(), messages: history })); setLoading(true); try { const response = await fetch("/api/alma/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: text, history: history.slice(-12, -1).map(({ role, content }) => ({ role, content })) }) }); const data = await response.json(); if (!response.ok) throw new Error(data.error || "ALMA could not answer."); update(active.id, (chat) => ({ ...chat, updatedAt: Date.now(), messages: [...chat.messages, { id: crypto.randomUUID(), role: "assistant", content: data.message, citations: data.citations || [] }] })); } catch (cause) { const message = cause instanceof Error ? cause.message : "ALMA could not answer."; setError(message.includes("OPENAI_API_KEY") ? "ALMA needs its server-only OpenAI key in Vercel before it can answer. Your chats are still saved here." : message); } finally { setLoading(false); } }
-  return <AppShell><section className="mx-auto flex h-[calc(100vh-7rem)] min-h-[640px] max-w-7xl overflow-hidden rounded-2xl border border-black/[.08] bg-white shadow-sm"><aside className="hidden w-72 shrink-0 border-r bg-zinc-50 md:flex md:flex-col"><div className="border-b p-4"><button onClick={newChat} className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-black text-sm text-white"><MessageSquarePlus size={16}/>New chat</button></div><div className="min-h-0 flex-1 overflow-y-auto p-2">{chats.map((chat) => <div key={chat.id} className={`group mb-1 flex items-center gap-1 rounded-lg ${chat.id === active?.id ? "bg-white shadow-sm" : "hover:bg-white"}`}><button onClick={() => setActiveId(chat.id)} className="min-w-0 flex-1 px-3 py-3 text-left"><p className="truncate text-sm font-medium">{chat.title}</p><p className="mt-1 text-[11px] text-zinc-500">{new Date(chat.updatedAt).toLocaleDateString()}</p></button><button aria-label="Delete chat" onClick={() => deleteChat(chat.id)} className="mr-2 hidden rounded p-1.5 text-zinc-400 hover:bg-red-50 hover:text-red-600 group-hover:block"><Trash2 size={14}/></button></div>)}</div></aside><main className="flex min-w-0 flex-1 flex-col bg-[#0b0e0c] text-white"><header className="flex items-center justify-between border-b border-white/10 p-5"><div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-emerald-400 text-black"><Bot size={20}/></span><div><h1 className="font-semibold">ALMA</h1><p className="text-xs text-emerald-300">Grounded operations assistant</p></div></div><button onClick={newChat} className="rounded-lg border border-white/15 px-3 py-2 text-xs md:hidden">New chat</button></header><div className="min-h-0 flex-1 overflow-y-auto p-5 md:p-8">{active?.messages.map((message) => <div key={message.id} className={`mb-6 flex ${message.role === "user" ? "justify-end" : "justify-start"}`}><div className={`max-w-[88%] rounded-2xl px-4 py-3 text-sm leading-7 ${message.role === "user" ? "bg-emerald-400 text-black" : "border border-white/10 bg-white/[.06] text-zinc-100"}`}><p className="whitespace-pre-wrap">{message.content}</p>{message.citations?.length ? <div className="mt-3 border-t border-white/10 pt-3"><p className="text-[10px] uppercase tracking-wide text-zinc-400">Sources</p>{message.citations.map((citation, index) => <p key={index} className="mt-1 text-xs text-zinc-300">{citation.label}</p>)}</div> : null}</div></div>)}{loading && <div className="flex items-center gap-2 text-sm text-zinc-400"><Sparkles size={16} className="animate-pulse text-emerald-300"/>ALMA is reading the workspace...</div>}{error && <div className="mt-3 rounded-lg border border-red-400/30 bg-red-950/40 p-3 text-sm text-red-200">{error}</div>}<div ref={end}/></div><div className="border-t border-white/10 p-4"><div className="flex items-end gap-3 rounded-xl bg-white/[.07] p-2"><textarea value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); send(); } }} rows={2} placeholder="Message ALMA..." className="max-h-36 flex-1 resize-none bg-transparent px-3 py-2 text-sm outline-none placeholder:text-zinc-500"/><button onClick={send} disabled={!input.trim() || loading} className="grid h-10 w-10 place-items-center rounded-lg bg-emerald-400 text-black disabled:opacity-40"><Send size={17}/></button></div><p className="mt-2 text-center text-[11px] text-zinc-500">ALMA provides grounded analysis. Staff approval is required for external communication.</p></div></main></section></AppShell>;
+  const update = (id: string, change: (chat: Chat) => Chat) => setChats((current) => current.map((chat) => chat.id === id ? change(chat) : chat).sort((a, b) => b.updatedAt - a.updatedAt));
+
+  function startNewChat() {
+    const chat = createChat();
+    setChats((current) => [chat, ...current]);
+    setActiveId(chat.id);
+    setInput("");
+    setError("");
+  }
+
+  function deleteChat(id: string) {
+    setChats((current) => {
+      const next = current.filter((chat) => chat.id !== id);
+      const safe = next.length ? next : [createChat()];
+      setActiveId(safe[0].id);
+      return safe;
+    });
+  }
+
+  async function send(value = input) {
+    const text = value.trim();
+    if (!text || !active || loading) return;
+    const user: Message = { id: crypto.randomUUID(), role: "user", content: text };
+    const history = [...active.messages, user];
+    setInput("");
+    setError("");
+    update(active.id, (chat) => ({ ...chat, title: chat.title === "New conversation" ? text.slice(0, 46) : chat.title, updatedAt: Date.now(), messages: history }));
+    setLoading(true);
+    try {
+      const response = await fetch("/api/alma/chat", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ message: text, history: history.slice(-12, -1).map(({ role, content }) => ({ role, content })) }) });
+      const data = readResponse(response, await response.text());
+      if (!response.ok) throw new Error(data.error || "ALMA could not answer.");
+      update(active.id, (chat) => ({ ...chat, updatedAt: Date.now(), messages: [...chat.messages, { id: crypto.randomUUID(), role: "assistant", content: data.message || "I could not produce a response.", citations: data.citations || [] }] }));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "ALMA could not answer.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return <AppShell>
+    <section className="mx-auto grid h-[calc(100vh-7rem)] min-h-[650px] max-w-6xl overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm md:grid-cols-[260px_minmax(0,1fr)]">
+      <aside className="hidden min-h-0 border-r border-zinc-200 bg-zinc-50 md:flex md:flex-col">
+        <div className="p-3"><button onClick={startNewChat} className="flex h-10 w-full items-center justify-center gap-2 rounded-md border border-zinc-300 bg-white text-sm font-medium text-zinc-900 shadow-sm hover:bg-zinc-100"><MessageSquarePlus size={16}/>New chat</button></div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">{chats.map((chat) => <div key={chat.id} className={"group mb-1 flex items-center rounded-md " + (chat.id === active?.id ? "bg-zinc-200/80" : "hover:bg-zinc-100")}><button onClick={() => setActiveId(chat.id)} className="min-w-0 flex-1 px-3 py-2.5 text-left"><p className="truncate text-sm text-zinc-800">{chat.title}</p></button><button onClick={() => deleteChat(chat.id)} aria-label="Delete chat" className="mr-1 rounded p-1.5 text-zinc-400 opacity-0 hover:bg-white hover:text-red-600 group-hover:opacity-100"><Trash2 size={14}/></button></div>)}</div>
+        <p className="border-t border-zinc-200 px-4 py-3 text-[11px] leading-4 text-zinc-500">ALMA uses the current LegacyOS workspace and private Knowledge files.</p>
+      </aside>
+      <main className="flex min-w-0 flex-col">
+        <header className="flex items-center justify-between border-b border-zinc-200 px-5 py-4"><div className="flex items-center gap-3"><span className="grid h-9 w-9 place-items-center rounded-lg bg-emerald-500 text-white"><Bot size={18}/></span><div><h1 className="text-sm font-semibold text-zinc-900">ALMA</h1><p className="text-xs text-zinc-500">LegacyOS operations assistant</p></div></div><button onClick={startNewChat} className="rounded-md border border-zinc-300 px-3 py-2 text-xs font-medium md:hidden">New chat</button></header>
+        <div className="min-h-0 flex-1 overflow-y-auto bg-[#fcfcfb]"><div className="mx-auto w-full max-w-3xl px-5 py-8 md:px-10">{active?.messages.map((message) => <div key={message.id} className="mb-7"><div className="flex gap-3"><span className={"mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-semibold " + (message.role === "assistant" ? "bg-emerald-500 text-white" : "bg-zinc-900 text-white")}>{message.role === "assistant" ? <Bot size={14}/> : "You"}</span><div className="min-w-0 flex-1"><p className="mb-2 text-xs font-semibold text-zinc-800">{message.role === "assistant" ? "ALMA" : "You"}</p><p className="whitespace-pre-wrap text-sm leading-7 text-zinc-700">{message.content}</p>{message.citations?.length ? <div className="mt-4 border-l-2 border-emerald-400 pl-3"><p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">Sources used</p>{message.citations.map((citation, index) => <p key={index} className="mt-1 text-xs text-zinc-600">{citation.label}</p>)}</div> : null}</div></div></div>)}{loading && <div className="flex items-center gap-3 text-sm text-zinc-500"><span className="grid h-7 w-7 place-items-center rounded-full bg-emerald-500 text-white"><Sparkles size={14} className="animate-pulse"/></span>ALMA is reviewing the workspace...</div>}{error && <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-800">{error}</div>}<div ref={bottom}/></div></div>
+        <div className="border-t border-zinc-200 bg-white p-4"><div className="mx-auto flex max-w-3xl items-end gap-3 rounded-xl border border-zinc-300 bg-white p-2 shadow-sm focus-within:border-zinc-500"><textarea value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); send(); } }} rows={1} placeholder="Ask ALMA about operations..." className="max-h-40 flex-1 resize-none bg-transparent px-2 py-2 text-sm leading-6 text-zinc-800 outline-none placeholder:text-zinc-400"/><button onClick={() => send()} disabled={!input.trim() || loading} className="grid h-9 w-9 place-items-center rounded-lg bg-zinc-900 text-white hover:bg-black disabled:opacity-30"><Send size={16}/></button></div><div className="mx-auto mt-2 flex max-w-3xl gap-2 overflow-x-auto px-1"><button onClick={() => send("What needs staff attention right now?")} className="shrink-0 rounded-full bg-zinc-100 px-3 py-1.5 text-xs text-zinc-600 hover:bg-zinc-200">Attention now</button><button onClick={() => send("Summarize urgent maintenance work.")} className="shrink-0 rounded-full bg-zinc-100 px-3 py-1.5 text-xs text-zinc-600 hover:bg-zinc-200">Urgent maintenance</button><button onClick={() => send("What should we do with the newest emails?")} className="shrink-0 rounded-full bg-zinc-100 px-3 py-1.5 text-xs text-zinc-600 hover:bg-zinc-200">Newest email</button></div></div>
+      </main>
+    </section>
+  </AppShell>;
 }

@@ -35,7 +35,8 @@ test("Phone CRM migration repairs the timeline relationship and reloads the API 
 test("Phone CRM secure audio and ElevenLabs synchronization are real routes", () => {
   assert.match(calls, /\/api\/calls\/\$\{selected\.id\}\/audio/);
   assert.match(calls, /<audio controls preload="none"/);
-  assert.match(calls, /fetch\("\/api\/elevenlabs\/sync", \{ method: "POST" \}\)/);
+  assert.match(calls, /fetch\("\/api\/elevenlabs\/sync"/);
+  assert.match(calls, /Check its Vercel credentials and deployment/);
   assert.match(calls, /Import calls from ElevenLabs/);
 });
 
