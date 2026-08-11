@@ -312,3 +312,72 @@ test("emergency RPC creates only one open notification and activity when repeate
     await db.close();
   }
 });
+
+test("real contractor directory auto-routes a normal call for staff approval without dispatching", async () => {
+  const db = await setupDb();
+  const ticketId = "00000000-0000-4000-8000-000000000005";
+  try {
+    await db.exec(`
+      insert into public.maintenance_tickets (
+        id, tenant_name, property, issue_category, issue, urgency, status
+      ) values (
+        '${ticketId}', 'Directory Resident', 'Directory Property', 'Plumbing',
+        'Kitchen sink pipe is leaking.', 'High', 'Needs Review'
+      );
+    `);
+
+    const route = await one<{ result: { status: string; vendorName?: string } }>(
+      db,
+      `select public.route_ticket_to_vendor('${ticketId}', 'runtime_test') as result`
+    );
+    assert.equal(route.result.status, "recommended");
+    assert.equal(route.result.vendorName, "Kevin Ray Thomas");
+
+    const ticket = await one<{ status: string; dispatch_status: string; assigned_vendor_name: string }>(
+      db,
+      `select status, dispatch_status, assigned_vendor_name from public.maintenance_tickets where id = '${ticketId}'`
+    );
+    assert.deepEqual(ticket, {
+      status: "Vendor Recommended",
+      dispatch_status: "Recommended",
+      assigned_vendor_name: "Kevin Ray Thomas",
+    });
+
+    const job = await one<{ status: string; notification_status: string }>(
+      db,
+      `select status, notification_status from public.vendor_jobs where ticket_id = '${ticketId}'`
+    );
+    assert.deepEqual(job, { status: "Recommended", notification_status: "Pending Approval" });
+  } finally {
+    await db.close();
+  }
+});
+
+test("emergency calls are held for human review and never auto-route to a vendor", async () => {
+  const db = await setupDb();
+  const ticketId = "00000000-0000-4000-8000-000000000006";
+  try {
+    await db.exec(`
+      insert into public.maintenance_tickets (
+        id, tenant_name, property, issue_category, issue, urgency, status, classification
+      ) values (
+        '${ticketId}', 'Emergency Resident', 'Emergency Property', 'Electrical',
+        'There is a sparking electrical outlet.', 'Emergency', 'Emergency Escalated', 'emergency'
+      );
+    `);
+
+    const route = await one<{ result: { status: string } }>(
+      db,
+      `select public.route_ticket_to_vendor('${ticketId}', 'runtime_test') as result`
+    );
+    assert.equal(route.result.status, "held_for_emergency_review");
+
+    const jobs = await one<{ count: number }>(
+      db,
+      `select count(*)::integer as count from public.vendor_jobs where ticket_id = '${ticketId}'`
+    );
+    assert.equal(jobs.count, 0);
+  } finally {
+    await db.close();
+  }
+});

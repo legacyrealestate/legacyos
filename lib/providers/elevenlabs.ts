@@ -4,6 +4,7 @@ import { normalizeElevenLabsPayload } from "@/lib/workflows/elevenlabs";
 import { createServiceSupabaseClient } from "@/lib/supabase/server";
 import { persistSafetyClassification } from "@/lib/workflows/safety-persistence";
 import { enqueueAlma } from "@/lib/workflows/alma";
+import { routeTicketToVendor } from "@/lib/workflows/vendor-routing";
 
 const BASE = "https://api.elevenlabs.io/v1/convai/conversations";
 type Fetcher = typeof fetch;
@@ -62,7 +63,7 @@ export async function syncElevenLabs(fetcher: Fetcher = fetch) {
         recording_available: detail.has_audio === true, provider_metadata: { twilio_call_sid: normalized.twilioCallSid }
       }});
       if (error) throw new ApiError("server_error", "Unable to persist synchronized conversation.");
-      if(typeof ticketId==="string"){await db.from("maintenance_tickets").update({transcript_turns:normalized.transcriptTurns,call_outcome:normalized.callStatus,failure_reason:normalized.failureReason,recording_available:normalized.recordingAvailable,follow_up_status:normalized.callStatus==="failed"?"queued":"none",...(normalized.twilioCallSid?{twilio_call_sid:normalized.twilioCallSid,secondary_provider_ids:{elevenlabs:normalized.conversationId,twilio:normalized.twilioCallSid},provider_metadata:{twilio_call_sid:normalized.twilioCallSid}}:{})}).eq("id",ticketId);await persistSafetyClassification(ticketId,`${normalized.summary}\n${normalized.transcript}`);await enqueueAlma({jobType:"call_analysis",entityType:"maintenance_ticket",entityId:ticketId,payload:{text:normalized.summary,action:"analyze"},idempotencyKey:`call-analysis:${normalized.conversationId||id}`});if(normalized.callStatus==="failed")await enqueueAlma({jobType:"call_follow_up",entityType:"maintenance_ticket",entityId:ticketId,payload:{reason:normalized.failureReason||"ElevenLabs call failed"},idempotencyKey:`call-follow-up:${normalized.conversationId||id}`})}
+      if(typeof ticketId==="string"){await db.from("maintenance_tickets").update({transcript_turns:normalized.transcriptTurns,call_outcome:normalized.callStatus,failure_reason:normalized.failureReason,recording_available:normalized.recordingAvailable,follow_up_status:normalized.callStatus==="failed"?"queued":"none",...(normalized.twilioCallSid?{twilio_call_sid:normalized.twilioCallSid,secondary_provider_ids:{elevenlabs:normalized.conversationId,twilio:normalized.twilioCallSid},provider_metadata:{twilio_call_sid:normalized.twilioCallSid}}:{})}).eq("id",ticketId);await persistSafetyClassification(ticketId,`${normalized.summary}\n${normalized.transcript}`);await routeTicketToVendor(ticketId,"elevenlabs_sync");await enqueueAlma({jobType:"call_analysis",entityType:"maintenance_ticket",entityId:ticketId,payload:{text:normalized.summary,action:"analyze"},idempotencyKey:`call-analysis:${normalized.conversationId||id}`});if(normalized.callStatus==="failed")await enqueueAlma({jobType:"call_follow_up",entityType:"maintenance_ticket",entityId:ticketId,payload:{reason:normalized.failureReason||"ElevenLabs call failed"},idempotencyKey:`call-follow-up:${normalized.conversationId||id}`})}
       imported++;
     }
     const nextCursor = list.next_cursor || null;

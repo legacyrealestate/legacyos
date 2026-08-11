@@ -8,8 +8,10 @@ type Vendor = {
   id: string;
   name: string;
   trade?: string | null;
+  coverage_trades?: string[] | null;
   phone?: string | null;
   email?: string | null;
+  alternate_email?: string | null;
   dispatch_keywords?: string[] | null;
   priority?: string | null;
   emergency_available?: boolean | null;
@@ -300,6 +302,8 @@ export default function VendorsPage() {
                         <div className="mt-5 space-y-2 text-[13px] text-zinc-600">
                           <p><span className="text-zinc-400">Phone:</span> {vendor.phone ? <a className="text-emerald-700 underline" href={`tel:${vendor.phone}`}>{vendor.phone}</a> : "Needs contact"}</p>
                           <p><span className="text-zinc-400">Email:</span> {vendor.email ? <a className="text-emerald-700 underline" href={`mailto:${vendor.email}`}>{vendor.email}</a> : "Needs contact"}</p>
+                          {vendor.alternate_email && <p><span className="text-zinc-400">Alternate:</span> <a className="text-emerald-700 underline" href={`mailto:${vendor.alternate_email}`}>{vendor.alternate_email}</a></p>}
+                          {!!vendor.coverage_trades?.length && <p><span className="text-zinc-400">Coverage:</span> {vendor.coverage_trades.join(", ")}</p>}
                           <p><span className="text-zinc-400">Keywords:</span> {(vendor.dispatch_keywords || []).join(", ") || "None"}</p>
                           <p><span className="text-zinc-400">Last Notification:</span> {vendor.last_dispatched_at ? new Date(vendor.last_dispatched_at).toLocaleString() : "None yet"}</p>
                         </div>

@@ -41,6 +41,7 @@ export async function POST(req: Request) {
     if (dispatchError) throw new ApiError("server_error", dispatchError.message);
     const activeDispatches = (candidateDispatches || []).filter(
       (dispatch) =>
+        dispatch.status === "Recommended" ||
         ACTIVE_VENDOR_JOB_STATUSES.includes(dispatch.status as (typeof ACTIVE_VENDOR_JOB_STATUSES)[number]) ||
         Boolean(dispatch.notification_attempt_key) ||
         Boolean(dispatch.provider_message_sid) ||
@@ -62,7 +63,7 @@ export async function POST(req: Request) {
 
     const { data: vendors, error: vendorsError } = await supabase
       .from("vendors")
-      .select("id,name,trade,phone,email,dispatch_keywords,priority,emergency_available,active,open_jobs,total_dispatched,last_dispatched_at")
+      .select("id,name,trade,coverage_trades,phone,email,alternate_email,dispatch_keywords,priority,emergency_available,active,dispatch_order,open_jobs,total_dispatched,last_dispatched_at")
       .eq("active", true);
 
     if (vendorsError) throw new ApiError("server_error", vendorsError.message);

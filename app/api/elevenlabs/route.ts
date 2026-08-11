@@ -5,6 +5,7 @@ import { getElevenLabsSignature, verifyElevenLabsSignature } from "@/lib/securit
 import { createServiceSupabaseClient } from "@/lib/supabase/server";
 import { persistSafetyClassification } from "@/lib/workflows/safety-persistence";
 import { enqueueAlma } from "@/lib/workflows/alma";
+import { routeTicketToVendor } from "@/lib/workflows/vendor-routing";
 
 type ElevenLabsTranscriptItem = {
   role?: string;
@@ -221,6 +222,7 @@ export async function POST(req: Request) {
       }).eq("id", ticketId);
       if(normalized.twilioCallSid)await supabase.from("maintenance_tickets").update({twilio_call_sid:normalized.twilioCallSid,secondary_provider_ids:{elevenlabs:normalized.conversationId,twilio:normalized.twilioCallSid},provider_metadata:{twilio_call_sid:normalized.twilioCallSid}}).eq("id",ticketId);
       await persistSafetyClassification(ticketId, `${normalized.summary}\n${normalized.transcript}`);
+      await routeTicketToVendor(ticketId, "elevenlabs_webhook");
       await enqueueAlma({ jobType: "call_analysis", entityType: "maintenance_ticket", entityId: ticketId, payload: { text: normalized.summary, action: "analyze" }, idempotencyKey: `call-analysis:${normalized.conversationId}` });
       if (failed) await enqueueAlma({ jobType: "call_follow_up", entityType: "maintenance_ticket", entityId: ticketId, payload: { reason: normalized.failureReason || "ElevenLabs call failed" }, idempotencyKey: `call-follow-up:${normalized.conversationId}` });
     }

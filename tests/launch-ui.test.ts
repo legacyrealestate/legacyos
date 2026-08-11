@@ -40,6 +40,20 @@ test("Phone CRM secure audio and ElevenLabs synchronization are real routes", ()
   assert.match(calls, /Import calls from ElevenLabs/);
 });
 
+test("ElevenLabs intake auto-routes only to an internal vendor recommendation", () => {
+  const webhook = read("app/api/elevenlabs/route.ts");
+  const sync = read("lib/providers/elevenlabs.ts");
+  const routing = read("lib/workflows/vendor-routing.ts");
+  const migration = read("supabase/migrations/20260811135039_import_legacy_vendor_directory_and_auto_route.sql");
+
+  assert.match(webhook, /routeTicketToVendor\(ticketId, "elevenlabs_webhook"\)/);
+  assert.match(sync, /routeTicketToVendor\(ticketId,"elevenlabs_sync"\)/);
+  assert.match(routing, /never sends a vendor communication/);
+  assert.match(migration, /'Pending Approval'/);
+  assert.match(migration, /No vendor was selected or contacted automatically/);
+  assert.match(migration, /revoke all on function public\.route_ticket_to_vendor\(uuid, text\) from public, anon, authenticated/);
+});
+
 test("shared inbox visibility includes shared connections and active staff", () => {
   assert.match(emailApi, /shared_with_staff\.eq\.true/);
   assert.match(emailApi, /from\("profiles"\)[\s\S]*eq\("active", true\)/);

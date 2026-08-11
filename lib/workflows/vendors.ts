@@ -2,12 +2,15 @@ export type VendorRecord = {
   id: string;
   name: string;
   trade?: string | null;
+  coverage_trades?: string[] | null;
   phone?: string | null;
   email?: string | null;
+  alternate_email?: string | null;
   dispatch_keywords?: string[] | null;
   priority?: string | null;
   emergency_available?: boolean | null;
   active?: boolean | null;
+  dispatch_order?: number | null;
   open_jobs?: number | null;
   total_dispatched?: number | null;
   last_dispatched_at?: string | null;
@@ -36,5 +39,10 @@ export function rankVendors(vendors: VendorRecord[], text: string) {
       ...vendor,
       score: scoreVendor(vendor, text),
     }))
-    .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+    .sort(
+      (a, b) =>
+        b.score - a.score ||
+        (a.dispatch_order || Number.MAX_SAFE_INTEGER) - (b.dispatch_order || Number.MAX_SAFE_INTEGER) ||
+        a.name.localeCompare(b.name)
+    );
 }
