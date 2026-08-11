@@ -26,6 +26,12 @@ test("Phone CRM exposes production filters and detail loading", () => {
   assert.match(calls, /Activity timeline/);
 });
 
+test("Phone CRM migration repairs the timeline relationship and reloads the API schema", () => {
+  const repair = read("supabase/migrations/20260811130148_repair_phone_crm_and_alma_workspace.sql");
+  assert.match(repair, /ticket_updates_ticket_id_fkey/);
+  assert.match(repair, /notify pgrst, 'reload schema'/);
+});
+
 test("Phone CRM secure audio and ElevenLabs synchronization are real routes", () => {
   assert.match(calls, /\/api\/calls\/\$\{selected\.id\}\/audio/);
   assert.match(calls, /<audio controls preload="none"/);
@@ -38,6 +44,13 @@ test("shared inbox visibility includes shared connections and active staff", () 
   assert.match(emailApi, /from\("profiles"\)[\s\S]*eq\("active", true\)/);
   assert.match(email, /Shared email office/);
   assert.match(email, /Mailbox folders/);
+});
+
+test("staff connect and import the shared Gmail inbox from Email, not Integrations", () => {
+  assert.match(email, /Connect Gmail/);
+  assert.match(email, /Import and analyze email/);
+  assert.match(email, /api\/oauth\/google\/start/);
+  assert.doesNotMatch(email, /Open integrations/);
 });
 
 test("email thread selection and response controls use provider action routes", () => {
@@ -63,6 +76,6 @@ test("integration UI never equates configuration with authentication", () => {
 test("launch pages contain actionable disconnected, empty, loading, and error states", () => {
   for (const text of ["Operations data is unavailable", "No calls have been imported", "Loading command center"]) assert.ok(dashboard.includes(text));
   for (const text of ["No calls yet", "Loading calls", "Synchronization failed"]) assert.ok(calls.includes(text));
-  for (const text of ["Mailbox authorization expired", "No company mailbox is connected", "No synchronized email yet", "Loading shared inbox"]) assert.ok(email.includes(text));
+  for (const text of ["Mailbox authorization expired", "Connect the shared company mailbox", "Ready to import the shared mailbox", "Loading shared inbox"]) assert.ok(email.includes(text));
   for (const text of ["Never synchronized", "Missing credentials", "provider could not be reached"]) assert.ok(integrations.includes(text));
 });

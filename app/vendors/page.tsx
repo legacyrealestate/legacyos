@@ -92,6 +92,7 @@ export default function VendorsPage() {
   }, [vendors, search]);
 
   const trades = Array.from(new Set(filtered.map((vendor) => vendor.trade || "General")));
+  const missingContact = vendors.filter((vendor) => !vendor.phone && !vendor.email).length;
 
   function editVendor(vendor: Vendor) {
     setForm({
@@ -184,6 +185,7 @@ export default function VendorsPage() {
           placeholder="Search vendor, trade, phone, email..."
           className="mt-8 w-full h-[56px] rounded-2xl border border-black/[0.08] bg-[#fafafa] px-5 text-[14px] outline-none"
         />
+        {missingContact > 0 && <p className="mt-4 text-sm text-amber-800">{missingContact} vendor{missingContact === 1 ? "" : "s"} need a phone number or email before they can be contacted. The imported directory did not invent contact details.</p>}
       </div>
 
       {role === "admin" && (
@@ -256,7 +258,7 @@ export default function VendorsPage() {
             <MetricCard title="Total Vendors" value={vendors.length} />
             <MetricCard title="Trades" value={trades.length} />
             <MetricCard title="Open Jobs" value={vendors.reduce((sum, vendor) => sum + (vendor.open_jobs || 0), 0)} />
-            <MetricCard title="Notifications" value={vendors.reduce((sum, vendor) => sum + (vendor.total_dispatched || 0), 0)} />
+            <MetricCard title="Needs Contact" value={missingContact} />
           </div>
 
           <div className="space-y-8 mt-8">
@@ -296,8 +298,8 @@ export default function VendorsPage() {
                         </div>
 
                         <div className="mt-5 space-y-2 text-[13px] text-zinc-600">
-                          <p><span className="text-zinc-400">Phone:</span> {vendor.phone || "Not added"}</p>
-                          <p><span className="text-zinc-400">Email:</span> {vendor.email || "Not added"}</p>
+                          <p><span className="text-zinc-400">Phone:</span> {vendor.phone ? <a className="text-emerald-700 underline" href={`tel:${vendor.phone}`}>{vendor.phone}</a> : "Needs contact"}</p>
+                          <p><span className="text-zinc-400">Email:</span> {vendor.email ? <a className="text-emerald-700 underline" href={`mailto:${vendor.email}`}>{vendor.email}</a> : "Needs contact"}</p>
                           <p><span className="text-zinc-400">Keywords:</span> {(vendor.dispatch_keywords || []).join(", ") || "None"}</p>
                           <p><span className="text-zinc-400">Last Notification:</span> {vendor.last_dispatched_at ? new Date(vendor.last_dispatched_at).toLocaleString() : "None yet"}</p>
                         </div>
@@ -309,7 +311,7 @@ export default function VendorsPage() {
                             onClick={() => editVendor(vendor)}
                             className="h-[42px] px-4 rounded-2xl bg-black text-white text-[13px]"
                           >
-                            Edit
+                            {vendor.phone || vendor.email ? "Edit" : "Add contact"}
                           </button>
                           {vendor.active !== false && (
                             <button
