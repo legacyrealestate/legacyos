@@ -4,6 +4,7 @@ import { generateEmailDraft } from "@/lib/ai/alma";
 import { createServiceSupabaseClient } from "@/lib/supabase/server";
 import { requestEmailAction } from "@/lib/providers/email-compose";
 import { classifyEmail,extractContact,parseMailbox,suppressionReason,textOnly,type SafeHeaders } from "@/lib/workflows/email-intake-policy";
+import { isLeasingClassification, leasingAcknowledgement, requestsCallback } from "@/lib/workflows/leasing";
 
 const now=()=>new Date().toISOString();
 export async function processEmailIntake(messageId:string){
@@ -32,14 +33,16 @@ export async function processEmailIntake(messageId:string){
     const ticket=await db.from("maintenance_tickets").upsert({source:"email",provider:"email",provider_conversation_id:`email:${messageId}`,tenant_name:contact.full_name,property,unit:extracted.unit,issue_category:classification.primary,issue,urgency:classification.urgency,status:classification.requiresHuman?"Needs Review":"New",source_email_message_id:messageId,email_thread_id:thread.id,crm_contact_id:contact.id,recording_available:false},{onConflict:"source_email_message_id"}).select("id").single();if(ticket.error)throw new ApiError("server_error","Unable to create the maintenance ticket.");ticketId=ticket.data.id;
     if(classification.requiresHuman)await Promise.all([db.from("notifications").insert({title:"Email maintenance review required",description:classification.explanation,type:classification.urgency==="Emergency"?"emergency":"warning",related_ticket_id:ticketId}),db.from("crm_tasks").upsert({title:"Review email maintenance request",description:classification.explanation,priority:classification.urgency==="Emergency"?"emergency":"urgent",ticket_id:ticketId,crm_contact_id:contact.id,idempotency_key:`email-maintenance-review:${messageId}`},{onConflict:"idempotency_key",ignoreDuplicates:true})]);
   }
-  if(classification.primary==="Lead/leasing inquiry"){
+  if(isLeasingClassification(classification.primary)){
     await db.from("email_leads").upsert({thread_id:thread.id,contact_id:contact.id,source_message_id:messageId,desired_property:thread.property,unit_type:extracted.unit,status:"New",next_follow_up_at:new Date(Date.now()+86400000).toISOString()},{onConflict:"thread_id"});
     await db.from("crm_tasks").upsert({title:"Follow up with email lead",description:"Verify availability, pricing, policies, and showing options before replying.",priority:"routine",crm_contact_id:contact.id,due_at:new Date(Date.now()+86400000).toISOString(),idempotency_key:`email-lead-followup:${thread.id}`},{onConflict:"idempotency_key",ignoreDuplicates:true});
+    if(requestsCallback(body))await db.from("crm_tasks").upsert({title:"Call back leasing lead",description:"Prospect requested a phone call in their Microsoft 365 leasing inquiry.",priority:"urgent",crm_contact_id:contact.id,due_at:now(),idempotency_key:`email-lead-callback:${messageId}`},{onConflict:"idempotency_key",ignoreDuplicates:true});
   }
   const actionable=classification.primary!=="General";
   let outbound:Record<string,unknown>|null=null;
   if(actionable){
-    const draft=await generateEmailDraft({subject:String(message.subject||""),body,contactName:contact.full_name,property:thread.property});
+    let draft=leasingAcknowledgement({name:contact.full_name,property:thread.property});
+    if(process.env.AI_ASSISTANCE_ENABLED==="true")try{draft=await generateEmailDraft({subject:String(message.subject||""),body,contactName:contact.full_name,property:thread.property});}catch{}
     outbound=await requestEmailAction(connection.user_id,messageId,{action:"draft",to:[sender.email],body:draft,idempotencyKey:`email-draft-${messageId}`});
   }
   const decision=classification.requiresHuman?"human_review_required":actionable?"draft_created":"no_reply_needed";

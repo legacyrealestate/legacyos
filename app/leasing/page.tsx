@@ -1,10 +1,10 @@
-import UnavailablePanel from "@/app/components/UnavailablePanel";
+"use client";
 
-export default function LeasingPage() {
-  return (
-    <UnavailablePanel
-      title="Leasing"
-      description="Leasing workflows are not connected for the pilot. LegacyOS will not send application links or schedule tours."
-    />
-  );
-}
+import AppShell from "@/app/components/AppShell";
+import { useEffect, useState } from "react";
+
+type Lead={id:string;status:string;desired_property:string|null;unit_type:string|null;next_follow_up_at:string|null;email_threads:{id:string;subject:string|null;crm_contacts:{full_name:string;email:string|null;phone:string|null}|null}};
+type Result={leads:Lead[];counts:{new:number;due:number;total:number}};
+
+export default function LeasingPage(){const[data,setData]=useState<Result|null>(null),[error,setError]=useState("");useEffect(()=>{fetch("/api/leasing",{cache:"no-store"}).then(async response=>{const body=await response.json();if(!response.ok)throw new Error(body.error||"Unable to load leasing leads.");setData(body);}).catch(cause=>setError(cause instanceof Error?cause.message:"Unable to load leasing leads."));},[]);return <AppShell><section className="mx-auto max-w-6xl"><div className="border-b border-black/[.08] pb-8"><p className="text-[10px] uppercase tracking-[.24em] text-zinc-400">Microsoft 365 leasing office</p><h1 className="mt-3 text-3xl font-semibold">Leasing leads</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-500">Real Microsoft email inquiries captured by LegacyOS. Replies stay staff-approved; no calls are placed automatically.</p></div>{error?<p className="mt-6 border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</p>:!data?<p className="mt-6 text-sm text-zinc-500">Loading leasing operations...</p>:<><div className="mt-6 grid gap-4 sm:grid-cols-3"><Metric label="New leads" value={data.counts.new}/><Metric label="Follow-ups due" value={data.counts.due}/><Metric label="All captured leads" value={data.counts.total}/></div><div className="mt-8 divide-y divide-black/[.07] border-y border-black/[.08] bg-white">{data.leads.length?data.leads.map(lead=><article key={lead.id} className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between"><div><div className="flex items-center gap-2"><h2 className="font-medium">{lead.email_threads.crm_contacts?.full_name||"Unknown prospect"}</h2><span className="bg-emerald-50 px-2 py-1 text-[10px] uppercase tracking-wide text-emerald-700">{lead.status}</span></div><p className="mt-1 text-sm text-zinc-600">{lead.desired_property||"Property needs review"}{lead.unit_type?` · ${lead.unit_type}`:""}</p><p className="mt-1 text-xs text-zinc-500">{lead.email_threads.subject||"No subject"} · {lead.email_threads.crm_contacts?.email||"No email"} · {lead.email_threads.crm_contacts?.phone||"No phone captured"}</p></div><p className="text-xs text-zinc-500">Follow-up: {lead.next_follow_up_at?new Date(lead.next_follow_up_at).toLocaleString():"Not scheduled"}</p></article>):<p className="p-6 text-sm text-zinc-500">No leasing leads have been captured. Connect Microsoft 365 from Email, then sync the approved mailbox.</p>}</div></>}</section></AppShell>}
+function Metric({label,value}:{label:string;value:number}){return <div className="border border-black/[.08] bg-white p-5"><p className="text-xs text-zinc-500">{label}</p><p className="mt-2 text-3xl font-semibold">{value}</p></div>}
