@@ -8,7 +8,7 @@ export async function GET() {
   try {
     const auth = await requireUser();
     const db = createServiceSupabaseClient();
-    const [calls, operations, emails, actions, connections, jobs, checkpoints] = await Promise.all([
+    const [calls, operations, emails, actions, connections, jobs, checkpoints, leasingLeads] = await Promise.all([
       db.from("maintenance_tickets").select("id,tenant_name,phone,property,urgency,status,classification,classification_reason,call_status,call_started_at,created_at,ai_summary,follow_up_status,crm_tasks(id,status,title,due_at)").order("created_at", { ascending: false }),
       db.from("operations_feed").select("id,type,title,description,related_ticket_id,created_at").order("created_at", { ascending: false }).limit(10),
       db.from("email_threads").select("id,subject,status,urgency,assigned_to,last_message_at,follow_up_at,alma_classification,automation_disabled").order("last_message_at", { ascending: false }),
@@ -16,8 +16,9 @@ export async function GET() {
       db.from("provider_connections").select("provider,account_email,status,last_success_at,last_sync_at,last_error,shared_with_staff").or(`shared_with_staff.eq.true,user_id.eq.${auth.user.id}`),
       db.from("alma_jobs").select("id,status,job_type,run_after,updated_at,last_error").order("updated_at", { ascending: false }),
       db.from("sync_checkpoints").select("provider,last_success_at,last_error,checkpoint").order("last_success_at", { ascending: false }),
+      db.from("email_leads").select("id,status,desired_property,unit_type,next_follow_up_at,created_at,email_threads!inner(id,subject,primary_classification,crm_contacts(full_name,email,phone))").order("created_at", { ascending: false }).limit(20),
     ]);
-    for (const result of [calls, operations, emails, actions, connections, jobs, checkpoints]) {
+    for (const result of [calls, operations, emails, actions, connections, jobs, checkpoints, leasingLeads]) {
       if (result.error) throw new ApiError(result.error.code === "42P01" ? "missing_migration" : "server_error", result.error.message);
     }
 
@@ -25,6 +26,10 @@ export async function GET() {
     const today = new Date(now); today.setHours(0, 0, 0, 0);
     const week = new Date(today); week.setDate(week.getDate() - 6);
     const callRows = calls.data || [], emailRows = emails.data || [], actionRows = actions.data || [], jobRows = jobs.data || [];
+    const leadRows = (leasingLeads.data || []).flatMap((lead) => {
+      const thread = Array.isArray(lead.email_threads) ? lead.email_threads[0] : lead.email_threads;
+      return thread?.primary_classification === "Lead/leasing inquiry" ? [{ ...lead, email_threads: thread }] : [];
+    });
     const callDate = (call: (typeof callRows)[number]) => new Date(call.call_started_at || call.created_at);
     const followUpOpen = (call: (typeof callRows)[number]) => call.follow_up_status && !["none", "completed"].includes(call.follow_up_status) || call.crm_tasks?.some(task => !["completed", "closed"].includes(task.status));
     const urgencyCounts = ["Emergency", "Urgent", "High", "Medium", "Low"].map(label => ({ label, value: callRows.filter(call => call.urgency === label).length }));
@@ -48,11 +53,14 @@ export async function GET() {
         emailsAwaitingReply: emailQueue.length,
         draftsAwaitingApproval: awaitingApproval.length,
         overdueFollowUps: callRows.filter(call => call.crm_tasks?.some(task => task.due_at && new Date(task.due_at) < now && !["completed", "closed"].includes(task.status))).length + emailRows.filter(row => row.follow_up_at && new Date(row.follow_up_at) < now && !["Replied", "Closed"].includes(row.status)).length,
+        newLeasingLeads: leadRows.filter(lead => lead.status === "New").length,
+        leasingCallbacksDue: leadRows.filter(lead => lead.next_follow_up_at && new Date(lead.next_follow_up_at) <= now).length,
       },
       callVolume: volume,
       urgencyDistribution: urgencyCounts,
       urgentCalls: callRows.filter(call => ["Emergency", "Urgent", "High"].includes(call.urgency)).slice(0, 6),
       emailQueue: emailQueue.slice(0, 6),
+      leasingLeads: leadRows.slice(0, 6),
       operations: operations.data || [],
       integrations: connections.data || [],
       sync: { elevenlabs: eleven || null, lastCallSync: eleven?.last_success_at || null, lastEmailSync: emailCheckpoint },
