@@ -60,7 +60,7 @@ test("ElevenLabs intake auto-routes only to an internal vendor recommendation", 
 test("shared inbox visibility includes shared connections and active staff", () => {
   assert.match(emailApi, /shared_with_staff\.eq\.true/);
   assert.match(emailApi, /from\("profiles"\)[\s\S]*eq\("active", true\)/);
-  assert.match(email, /Leasing email desk/);
+  assert.match(email, /Microsoft 365 lead desk/);
   assert.match(email, /Mailbox folders/);
 });
 

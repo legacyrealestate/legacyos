@@ -12,7 +12,7 @@ type NotificationRecord = { id?: string; title?: string; description?: string; t
 type Item = { label: string; href: string; icon: typeof Mail };
 
 const primary: Item[] = [
-  { label: "Inbox", href: "/email", icon: Mail },
+  { label: "Leads", href: "/email", icon: Mail },
   { label: "Call transcripts", href: "/calls", icon: PhoneCall },
   { label: "Knowledge", href: "/knowledge", icon: FileText },
   { label: "ALMA", href: "/ai", icon: Bot },

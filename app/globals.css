@@ -56,6 +56,25 @@ body {
   box-shadow: 0 18px 42px rgba(25, 42, 32, 0.07), inset 0 1px rgba(255, 255, 255, 0.9);
 }
 
+.calls-hero {
+  position: relative;
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: 0 26px 60px rgba(19, 53, 36, 0.11), inset 0 1px rgba(255, 255, 255, 0.96);
+}
+
+.calls-hero::after {
+  position: absolute;
+  right: -70px;
+  top: -90px;
+  width: 310px;
+  height: 310px;
+  border: 1px solid rgba(18, 100, 62, 0.1);
+  border-radius: 50%;
+  box-shadow: 0 0 0 34px rgba(18, 100, 62, 0.035), 0 0 0 68px rgba(18, 100, 62, 0.02);
+  content: "";
+  pointer-events: none;
+}
+
 /* CARD HOVER */
 .card-hover:hover {
   transform: translateY(-2px);
