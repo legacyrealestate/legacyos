@@ -52,21 +52,23 @@ function senderAddress(sender: unknown) {
   return String(value?.value || (value?.emailAddress as Record<string, unknown> | undefined)?.address || "");
 }
 
-export async function requestEmailAction(userId: string, messageId: string, input: ComposeInput) {
+export async function requestEmailAction(userId: string, messageId: string, input: ComposeInput, options?: { allowAutomatedSend?: boolean }) {
   if (!/^[A-Za-z0-9:_-]{8,200}$/.test(input.idempotencyKey)) throw new ApiError("bad_request", "A valid idempotency key is required.");
   const ctx = await sourceContext(userId, messageId);
   const existing = await ctx.db.from("email_outbound_actions").select("id,status,provider_message_id").eq("idempotency_key", input.idempotencyKey).maybeSingle();
   if (existing.data) return { success: existing.data.status === "sent", idempotent: true, action: existing.data };
-  // A provider draft is safe to create. Every action that can deliver external email
-  // stays in an explicit waiting-for-approval state, regardless of ALMA mode.
-  const needsApproval = !["draft", "draft_update"].includes(input.action);
+  // Only the server-side intake workflow can opt into a narrow, pre-approved reply.
+  // Every staff-initiated external action remains approval-required.
+  const automatedReply = options?.allowAutomatedSend === true;
+  if (automatedReply && input.action !== "reply") throw new ApiError("forbidden", "Only a policy-approved email reply may be sent automatically.");
+  const needsApproval = !["draft", "draft_update"].includes(input.action) && !automatedReply;
   const recipients = input.to?.length ? input.to : input.action === "reply" ? [senderAddress(ctx.data.sender)] : input.action === "reply_all" ? [senderAddress(ctx.data.sender), ...((ctx.data.recipients as string[]) || [])] : [];
   const request = { ...input, to: addresses(recipients), attachments: input.attachments || [] };
   if (!request.to.length && input.action !== "draft") throw new ApiError("bad_request", "At least one valid recipient is required.");
   const { data: action, error } = await ctx.db.from("email_outbound_actions").insert({ connection_id: ctx.connection.id, source_message_id: messageId, action: input.action, idempotency_key: input.idempotencyKey, request, status: needsApproval ? "waiting_approval" : "draft", created_by: userId }).select("id,status").single();
   if (error) throw new ApiError("server_error", "Unable to create email action.");
   if (needsApproval) return { success: false, approvalRequired: true, actionId: action.id, status: action.status };
-  return executeEmailAction(action.id, userId, false, ctx, request);
+  return executeEmailAction(action.id, userId, automatedReply, ctx, request);
 }
 
 export async function approveEmailAction(actionId: string, adminId: string) {
