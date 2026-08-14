@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f7f8f6;
+  --background: #eef1ee;
   --foreground: #18181b;
 }
 
@@ -54,6 +54,11 @@ body {
   backdrop-filter: blur(22px) saturate(1.15);
   -webkit-backdrop-filter: blur(22px) saturate(1.15);
   box-shadow: 0 18px 42px rgba(25, 42, 32, 0.07), inset 0 1px rgba(255, 255, 255, 0.9);
+}
+
+.liquid-card {
+  border-color: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 16px 38px rgba(25, 42, 32, 0.07), inset 0 1px rgba(255, 255, 255, 0.94);
 }
 
 .calls-hero {
