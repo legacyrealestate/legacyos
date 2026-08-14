@@ -17,7 +17,8 @@ export async function GET() {
     const configured = (names: string[]) => names.every(name => Boolean(process.env[name]?.trim()));
     const definitions = [
       { id: "google", configured: configured(["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "APP_ENCRYPTION_KEY"]), connection: connection("google"), checkpoint: checkpoint("google") },
-      { id: "microsoft", configured: configured(["MICROSOFT_CLIENT_ID", "MICROSOFT_CLIENT_SECRET", "APP_ENCRYPTION_KEY"]), connection: connection("microsoft"), checkpoint: checkpoint("microsoft") },
+      { id: "microsoft", configured: configured(["MICROSOFT_CLIENT_ID", "MICROSOFT_CLIENT_SECRET", "APP_ENCRYPTION_KEY"]), connection: connection("microsoft"), checkpoint: checkpoint("microsoft"), supportsSync: true },
+      { id: "elevate", configured: configured(["ELEVATE_OAUTH_CLIENT_ID", "ELEVATE_OAUTH_CLIENT_SECRET", "ELEVATE_OAUTH_AUTHORIZE_URL", "ELEVATE_OAUTH_TOKEN_URL", "ELEVATE_OAUTH_PROFILE_URL", "APP_ENCRYPTION_KEY"]), connection: connection("elevate"), checkpoint: null, supportsSync: false },
     ];
     const providers = definitions.map(item => {
       const smoke = smokeTests.data?.find(test => test.provider === item.id);
@@ -34,6 +35,7 @@ export async function GET() {
         lastSync: item.connection?.last_sync_at || item.checkpoint?.last_success_at || null,
         lastSuccess: item.connection?.last_success_at || item.checkpoint?.last_success_at || null,
         lastError: item.connection?.last_error || item.checkpoint?.last_error || null,
+        supportsSync: item.supportsSync !== false,
       };
     });
     return apiJson({ providers });
