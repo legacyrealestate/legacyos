@@ -14,10 +14,13 @@ const integrationsApi = read("app/api/integrations/route.ts");
 
 test("dashboard metrics are calculated by the authenticated production API", () => {
   assert.match(dashboardApi, /await requireUser\(\)/);
-  for (const metric of ["callsToday", "callsWeek", "missedFailed", "openEmergencies", "callFollowUps", "emailsAwaitingReply", "draftsAwaitingApproval", "overdueFollowUps"]) assert.match(dashboardApi, new RegExp(metric));
+  for (const metric of ["callsToday", "callsWeek", "inboundCalls", "outboundCalls", "missedFailed", "openEmergencies", "callFollowUps", "emailsAwaitingReply", "draftsAwaitingApproval", "overdueFollowUps"]) assert.match(dashboardApi, new RegExp(metric));
   assert.match(dashboard, /\/api\/dashboard/);
   assert.match(dashboard, /callVolume/);
   assert.match(dashboard, /urgencyDistribution/);
+  assert.match(dashboard, /Inbound transcripts/);
+  assert.match(dashboard, /Outbound calls/);
+  assert.match(dashboard, /title="Leads"/);
 });
 
 test("Phone CRM exposes production filters and detail loading", () => {

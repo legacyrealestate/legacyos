@@ -9,7 +9,7 @@ export async function GET() {
     const auth = await requireUser();
     const db = createServiceSupabaseClient();
     const [calls, operations, emails, actions, connections, jobs, checkpoints, leasingLeads] = await Promise.all([
-      db.from("maintenance_tickets").select("id,tenant_name,phone,property,urgency,status,classification,classification_reason,call_status,call_started_at,created_at,ai_summary,follow_up_status,crm_tasks(id,status,title,due_at)").order("created_at", { ascending: false }),
+      db.from("maintenance_tickets").select("id,tenant_name,phone,property,urgency,status,classification,classification_reason,direction,call_status,call_started_at,created_at,ai_summary,follow_up_status,crm_tasks(id,status,title,due_at)").order("created_at", { ascending: false }),
       db.from("operations_feed").select("id,type,title,description,related_ticket_id,created_at").order("created_at", { ascending: false }).limit(10),
       db.from("email_threads").select("id,subject,status,urgency,assigned_to,last_message_at,follow_up_at,alma_classification,automation_disabled").order("last_message_at", { ascending: false }),
       db.from("email_outbound_actions").select("id,status,action,created_at,source_message_id").order("created_at", { ascending: false }),
@@ -31,6 +31,7 @@ export async function GET() {
       return thread?.primary_classification === "Lead/leasing inquiry" ? [{ ...lead, email_threads: thread }] : [];
     });
     const callDate = (call: (typeof callRows)[number]) => new Date(call.call_started_at || call.created_at);
+    const normalizedDirection = (call: (typeof callRows)[number]) => String(call.direction || "unknown").toLowerCase();
     const followUpOpen = (call: (typeof callRows)[number]) => call.follow_up_status && !["none", "completed"].includes(call.follow_up_status) || call.crm_tasks?.some(task => !["completed", "closed"].includes(task.status));
     const urgencyCounts = ["Emergency", "Urgent", "High", "Medium", "Low"].map(label => ({ label, value: callRows.filter(call => call.urgency === label).length }));
     const volume = Array.from({ length: 7 }, (_, index) => {
@@ -47,6 +48,8 @@ export async function GET() {
       metrics: {
         callsToday: callRows.filter(call => callDate(call) >= today).length,
         callsWeek: callRows.filter(call => callDate(call) >= week).length,
+        inboundCalls: callRows.filter(call => normalizedDirection(call) === "inbound").length,
+        outboundCalls: callRows.filter(call => normalizedDirection(call) === "outbound").length,
         missedFailed: callRows.filter(call => ["missed", "failed", "no-answer", "no_answer"].includes(String(call.call_status).toLowerCase())).length,
         openEmergencies: callRows.filter(call => call.urgency === "Emergency" && !["Resolved", "Closed"].includes(call.status)).length,
         callFollowUps: callRows.filter(followUpOpen).length,
@@ -59,6 +62,8 @@ export async function GET() {
       callVolume: volume,
       urgencyDistribution: urgencyCounts,
       urgentCalls: callRows.filter(call => ["Emergency", "Urgent", "High"].includes(call.urgency)).slice(0, 6),
+      inboundCalls: callRows.filter(call => normalizedDirection(call) === "inbound").slice(0, 5),
+      outboundCalls: callRows.filter(call => normalizedDirection(call) === "outbound").slice(0, 5),
       emailQueue: emailQueue.slice(0, 6),
       leasingLeads: leadRows.slice(0, 6),
       operations: operations.data || [],
