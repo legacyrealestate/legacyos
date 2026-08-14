@@ -27,6 +27,15 @@ test("Phone CRM exposes production filters and detail loading", () => {
   for (const filter of ["q", "urgency", "call_status", "direction", "property", "contact_id", "provider_agent_id", "call_outcome", "follow_up_status", "from", "to"]) assert.match(calls, new RegExp(filter));
   assert.match(callsApi, /ticket_updates\(id,type,title,description,created_at,created_by\)/);
   assert.match(calls, /Activity timeline/);
+  assert.match(callsApi, /direction\.eq\.inbound,direction\.is\.null/);
+  assert.match(callsApi, /direction: call\.direction \|\| "inbound"/);
+});
+
+test("historical call records are normalized as inbound without changing outbound calls", () => {
+  const migration = read("supabase/migrations/20260814110000_normalize_legacy_call_direction.sql");
+  assert.match(migration, /set direction = 'inbound'/);
+  assert.match(migration, /where direction is null/);
+  assert.match(migration, /provider_conversation_id is not null/);
 });
 
 test("Phone CRM migration repairs the timeline relationship and reloads the API schema", () => {

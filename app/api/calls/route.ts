@@ -22,9 +22,14 @@ export async function GET(req: Request) {
       .select("*,crm_tasks(id,status,title,due_at,assigned_to),ticket_updates(id,type,title,description,created_at,created_by)")
       .order(params.get("sort") === "oldest" ? "created_at" : params.get("sort") === "urgency" ? "urgency" : "created_at", { ascending: params.get("sort") === "oldest" })
       .range((page - 1) * limit, page * limit - 1);
-    for (const field of ["urgency", "status", "property", "direction", "call_status", "provider_agent_id", "call_outcome", "follow_up_status", "employee_assignee", "contact_id"] as const) {
+    for (const field of ["urgency", "status", "property", "call_status", "provider_agent_id", "call_outcome", "follow_up_status", "employee_assignee", "contact_id"] as const) {
       const value = params.get(field); if (value) query = query.eq(field, value.slice(0, 250));
     }
+    // Earlier conversation imports did not persist direction. They are inbound unless
+    // a provider has explicitly recorded an outbound call.
+    const direction = params.get("direction");
+    if (direction === "inbound") query = query.or("direction.eq.inbound,direction.is.null");
+    if (direction === "outbound") query = query.eq("direction", "outbound");
     const from = params.get("from"), to = params.get("to"), search = params.get("q")?.slice(0, 100);
     if (from) query = query.gte("call_started_at", from);
     if (to) query = query.lte("call_started_at", to);
@@ -32,7 +37,7 @@ export async function GET(req: Request) {
     const { data, error } = await query;
 
     if (error) throw new ApiError("server_error", error.message);
-    return apiJson(data || []);
+    return apiJson((data || []).map((call) => ({ ...call, direction: call.direction || "inbound" })));
   } catch (error) {
     return apiError(error);
   }
