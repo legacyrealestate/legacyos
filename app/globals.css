@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 :root {
-  --background: #fafafa;
+  --background: #f7f8f6;
   --foreground: #18181b;
 }
 
@@ -74,8 +74,8 @@ select {
 input:focus,
 textarea:focus,
 select:focus {
-  border-color: #6366f1;
+  border-color: #1d7a50;
   box-shadow:
-    0 0 0 4px rgba(99, 102, 241, 0.1);
+    0 0 0 4px rgba(29, 122, 80, 0.12);
   outline: none;
 }

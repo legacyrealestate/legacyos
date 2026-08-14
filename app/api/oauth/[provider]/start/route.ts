@@ -3,7 +3,9 @@ import { apiError } from "@/lib/security/api";
 import { requireAdmin } from "@/lib/security/auth";
 import { isOAuthProvider, oauthConfiguration, oauthRedirect, pkce, randomState } from "@/lib/security/oauth";
 
-export async function GET(_req: Request, context: { params: Promise<{ provider: string }> }) {
+const safeReturnTo = (value: string | null) => value && value.startsWith("/") && !value.startsWith("//") ? value : null;
+
+export async function GET(req: Request, context: { params: Promise<{ provider: string }> }) {
   try {
     await requireAdmin();
     const { provider: raw } = await context.params;
@@ -12,7 +14,11 @@ export async function GET(_req: Request, context: { params: Promise<{ provider: 
     const state = randomState();
     const { verifier, challenge } = pkce();
     const configuration = oauthConfiguration(provider);
-    if (!configuration.clientId || !configuration.clientSecret || !configuration.authorizeUrl || !configuration.tokenUrl || !process.env.APP_ENCRYPTION_KEY) return NextResponse.json({ success: false, code: "missing_configuration", error: `${provider} OAuth is not configured.` }, { status: 503 });
+    const returnTo = safeReturnTo(new URL(req.url).searchParams.get("returnTo"));
+    if (!configuration.clientId || !configuration.clientSecret || !configuration.authorizeUrl || !configuration.tokenUrl || !process.env.APP_ENCRYPTION_KEY) {
+      if (returnTo) return NextResponse.redirect(new URL(`${returnTo}?connection_error=${provider}_not_configured`, req.url));
+      return NextResponse.json({ success: false, code: "missing_configuration", error: `${provider} OAuth is not configured.` }, { status: 503 });
+    }
     const url = new URL(configuration.authorizeUrl);
     url.searchParams.set("client_id", configuration.clientId);
     url.searchParams.set("redirect_uri", oauthRedirect(provider));
@@ -26,6 +32,7 @@ export async function GET(_req: Request, context: { params: Promise<{ provider: 
     const options = { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax" as const, path: `/api/oauth/${provider}`, maxAge: 600 };
     response.cookies.set(`legacy_oauth_state_${provider}`, state, options);
     response.cookies.set(`legacy_oauth_pkce_${provider}`, verifier, options);
+    if (returnTo) response.cookies.set(`legacy_oauth_return_to_${provider}`, returnTo, options);
     return response;
   } catch (error) { return apiError(error); }
 }

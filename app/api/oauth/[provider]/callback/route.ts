@@ -31,8 +31,10 @@ export async function GET(req: Request, context: { params: Promise<{ provider: s
     if (typeof token.refresh_token === "string") payload.encrypted_refresh_token = encryptSecret(token.refresh_token);
     const { error } = await supabase.from("provider_connections").upsert(payload, { onConflict: "user_id,provider" });
     if (error) throw new ApiError("server_error", "Unable to save provider connection.");
-    const response = NextResponse.redirect(`${appOrigin()}/integrations?connected=${provider}`);
-    response.cookies.delete(`legacy_oauth_state_${provider}`); response.cookies.delete(`legacy_oauth_pkce_${provider}`);
+    const returnTo = cookies[`legacy_oauth_return_to_${provider}`];
+    const destination = returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//") ? returnTo : provider === "microsoft" ? "/email" : "/integrations";
+    const response = NextResponse.redirect(`${appOrigin()}${destination}?connected=${provider}`);
+    response.cookies.delete(`legacy_oauth_state_${provider}`); response.cookies.delete(`legacy_oauth_pkce_${provider}`); response.cookies.delete(`legacy_oauth_return_to_${provider}`);
     return response;
   } catch (error) { return apiError(error); }
 }

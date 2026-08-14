@@ -57,14 +57,15 @@ test("ElevenLabs intake auto-routes only to an internal vendor recommendation", 
 test("shared inbox visibility includes shared connections and active staff", () => {
   assert.match(emailApi, /shared_with_staff\.eq\.true/);
   assert.match(emailApi, /from\("profiles"\)[\s\S]*eq\("active", true\)/);
-  assert.match(email, /Shared email office/);
+  assert.match(email, /Leasing email desk/);
   assert.match(email, /Mailbox folders/);
 });
 
-test("staff connect and import the shared Gmail inbox from Email, not Integrations", () => {
-  assert.match(email, /Connect Gmail/);
+test("staff connect and import the shared Microsoft 365 inbox from Email, not Integrations", () => {
+  assert.match(email, /Connect Microsoft 365/);
   assert.match(email, /Import and analyze email/);
-  assert.match(email, /api\/oauth\/google\/start/);
+  assert.match(email, /api\/oauth\/microsoft\/start/);
+  assert.doesNotMatch(email, /Connect Gmail/);
   assert.doesNotMatch(email, /Open integrations/);
 });
 
@@ -93,6 +94,6 @@ test("integration UI never equates configuration with authentication", () => {
 test("launch pages contain actionable disconnected, empty, loading, and error states", () => {
   for (const text of ["Operations data is unavailable", "No calls have been imported", "Loading command center"]) assert.ok(dashboard.includes(text));
   for (const text of ["No calls yet", "Loading calls", "Synchronization failed"]) assert.ok(calls.includes(text));
-  for (const text of ["Mailbox authorization expired", "Connect the shared company mailbox", "Ready to import the shared mailbox", "Loading shared inbox"]) assert.ok(email.includes(text));
+  for (const text of ["Mailbox authorization expired", "Connect the shared leasing inbox", "Ready to import the shared mailbox", "Loading shared inbox"]) assert.ok(email.includes(text));
   for (const text of ["Connected but never synchronized", "Missing credentials", "provider could not be reached"]) assert.ok(integrations.includes(text));
 });
