@@ -7,6 +7,9 @@ export type LeasingDetails = {
   missing: string[];
 };
 
+export type LeadTemperature = "Hot" | "Warm" | "Cold";
+export type LeadQualification = { score: number; temperature: LeadTemperature; reasons: string[] };
+
 export function leasingAcknowledgement(input: { name?: string | null; property?: string | null }) {
   const firstName = input.name?.trim().split(/\s+/)[0] || "there";
   const property = input.property?.trim() ? ` about ${input.property.trim()}` : "";
@@ -35,3 +38,22 @@ export function requestsCallback(value: string | null | undefined) {
 }
 
 export function isLeasingClassification(value: string) { return value === "Lead/leasing inquiry"; }
+
+export function scoreLeasingLead(input: { text: string | null | undefined; details: LeasingDetails; phone?: string | null; property?: string | null }) : LeadQualification {
+  const text = textOnly(input.text).toLowerCase();
+  const reasons: string[] = [];
+  let score = 10;
+  const add = (value: number, reason: string) => { score += value; reasons.push(reason); };
+
+  if (requestsCallback(text)) add(30, "Requested a callback");
+  if (/\b(?:tour|showing|view|visit|schedule)\b/.test(text)) add(25, "Asked about a tour or showing");
+  if (input.phone) add(15, "Provided a phone number");
+  if (input.property) add(10, "Referenced a property");
+  if (input.details.moveInDate) add(10, "Provided move-in timing");
+  if (input.details.bedrooms) add(5, "Provided bedroom preference");
+  if (input.details.budget.min || input.details.budget.max) add(5, "Provided a budget");
+
+  score = Math.min(100, score);
+  const temperature: LeadTemperature = score >= 60 ? "Hot" : score >= 30 ? "Warm" : "Cold";
+  return { score, temperature, reasons: reasons.length ? reasons : ["Initial leasing inquiry"] };
+}

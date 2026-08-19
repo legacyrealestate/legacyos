@@ -4,7 +4,7 @@ import { generateEmailDraft } from "@/lib/ai/alma";
 import { createServiceSupabaseClient } from "@/lib/supabase/server";
 import { requestEmailAction } from "@/lib/providers/email-compose";
 import { canAutoSend,classifyEmail,extractContact,parseMailbox,suppressionReason,textOnly,type SafeHeaders } from "@/lib/workflows/email-intake-policy";
-import { extractLeasingDetails,isLeasingClassification, leasingAcknowledgement, leasingInformationRequest, requestsCallback } from "@/lib/workflows/leasing";
+import { extractLeasingDetails,isLeasingClassification, leasingAcknowledgement, leasingInformationRequest, requestsCallback, scoreLeasingLead } from "@/lib/workflows/leasing";
 
 const now=()=>new Date().toISOString();
 export async function processEmailIntake(messageId:string){
@@ -35,7 +35,8 @@ export async function processEmailIntake(messageId:string){
   }
   const leasing = isLeasingClassification(classification.primary) ? extractLeasingDetails(body) : null;
   if(leasing){
-    await db.from("email_leads").upsert({thread_id:thread.id,contact_id:contact.id,source_message_id:messageId,desired_property:thread.property,unit_type:leasing.bedrooms||extracted.unit,move_in_date:toDate(leasing.moveInDate),price_min:leasing.budget.min,price_max:leasing.budget.max,status:leasing.missing.length?"Needs information":"New",next_follow_up_at:new Date(Date.now()+86400000).toISOString()},{onConflict:"thread_id"});
+    const qualification=scoreLeasingLead({text:body,details:leasing,phone:contact.phone||extracted.phone,property:thread.property});
+    await db.from("email_leads").upsert({thread_id:thread.id,contact_id:contact.id,source_message_id:messageId,desired_property:thread.property,unit_type:leasing.bedrooms||extracted.unit,move_in_date:toDate(leasing.moveInDate),price_min:leasing.budget.min,price_max:leasing.budget.max,status:leasing.missing.length?"Needs information":"New",lead_temperature:qualification.temperature,lead_score:qualification.score,lead_score_reasons:qualification.reasons,next_follow_up_at:new Date(Date.now()+86400000).toISOString()},{onConflict:"thread_id"});
     await db.from("crm_tasks").upsert({title:"Follow up with email lead",description:"Verify availability, pricing, policies, and showing options before replying.",priority:"routine",crm_contact_id:contact.id,due_at:new Date(Date.now()+86400000).toISOString(),idempotency_key:`email-lead-followup:${thread.id}`},{onConflict:"idempotency_key",ignoreDuplicates:true});
     if(requestsCallback(body))await db.from("crm_tasks").upsert({title:"Call back leasing lead",description:"Prospect requested a phone call in their Microsoft 365 leasing inquiry.",priority:"urgent",crm_contact_id:contact.id,due_at:now(),idempotency_key:`email-lead-callback:${messageId}`},{onConflict:"idempotency_key",ignoreDuplicates:true});
   }

@@ -16,7 +16,7 @@ export async function GET() {
       db.from("provider_connections").select("provider,account_email,status,last_success_at,last_sync_at,last_error,shared_with_staff").or(`shared_with_staff.eq.true,user_id.eq.${auth.user.id}`),
       db.from("alma_jobs").select("id,status,job_type,run_after,updated_at,last_error").order("updated_at", { ascending: false }),
       db.from("sync_checkpoints").select("provider,last_success_at,last_error,checkpoint").order("last_success_at", { ascending: false }),
-      db.from("email_leads").select("id,status,desired_property,unit_type,next_follow_up_at,created_at,email_threads!inner(id,subject,primary_classification,crm_contacts(full_name,email,phone))").order("created_at", { ascending: false }).limit(20),
+      db.from("email_leads").select("id,status,desired_property,unit_type,lead_temperature,lead_score,next_follow_up_at,created_at,email_threads!inner(id,subject,primary_classification,crm_contacts(full_name,email,phone))").order("created_at", { ascending: false }).limit(20),
     ]);
     for (const result of [calls, operations, emails, actions, connections, jobs, checkpoints, leasingLeads]) {
       if (result.error) throw new ApiError(result.error.code === "42P01" ? "missing_migration" : "server_error", result.error.message);
@@ -57,6 +57,8 @@ export async function GET() {
         draftsAwaitingApproval: awaitingApproval.length,
         overdueFollowUps: callRows.filter(call => call.crm_tasks?.some(task => task.due_at && new Date(task.due_at) < now && !["completed", "closed"].includes(task.status))).length + emailRows.filter(row => row.follow_up_at && new Date(row.follow_up_at) < now && !["Replied", "Closed"].includes(row.status)).length,
         newLeasingLeads: leadRows.filter(lead => lead.status === "New").length,
+        hotLeasingLeads: leadRows.filter(lead => lead.lead_temperature === "Hot").length,
+        warmLeasingLeads: leadRows.filter(lead => lead.lead_temperature === "Warm").length,
         leasingCallbacksDue: leadRows.filter(lead => lead.next_follow_up_at && new Date(lead.next_follow_up_at) <= now).length,
       },
       callVolume: volume,
