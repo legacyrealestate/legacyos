@@ -134,6 +134,33 @@ body {
 .legacy-main .hover\:bg-white:hover,
 .legacy-main .hover\:bg-zinc-50:hover { background: rgba(110, 231, 183, 0.12) !important; }
 .legacy-main h1, .legacy-main h2, .legacy-main h3 { letter-spacing: -0.028em; }
+
+/* ALMA: black-and-white liquid glass, with emerald reserved for status only. */
+.alma-workspace {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(7, 13, 12, 0.74);
+  box-shadow: 0 34px 90px rgba(0, 0, 0, 0.38), inset 0 1px rgba(255, 255, 255, 0.11);
+  backdrop-filter: blur(34px) saturate(1.08);
+}
+.alma-rail { border-right: 1px solid rgba(255, 255, 255, 0.09); background: linear-gradient(160deg, rgba(16, 28, 25, 0.86), rgba(5, 11, 10, 0.78)); }
+.alma-new-chat, .alma-mobile-new { border: 1px solid rgba(255, 255, 255, 0.16); background: rgba(255, 255, 255, 0.045); color: #f7fbf9; box-shadow: inset 0 1px rgba(255, 255, 255, 0.08); }
+.alma-new-chat:hover, .alma-mobile-new:hover { background: rgba(255, 255, 255, 0.1); }
+.alma-chat-row { color: rgba(244, 248, 246, 0.62); }
+.alma-chat-row:hover { background: rgba(255, 255, 255, 0.05); color: #fff; }
+.alma-chat-active { background: linear-gradient(135deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.045)); color: #fff; box-shadow: inset 0 1px rgba(255, 255, 255, 0.1); }
+.alma-chat-row button:last-child { color: rgba(255, 255, 255, 0.46); }
+.alma-chat-row button:last-child:hover { color: #fff; background: rgba(255, 255, 255, 0.1); }
+.alma-rail-note { border-top: 1px solid rgba(255, 255, 255, 0.08); color: rgba(231, 241, 236, 0.48); }
+.alma-conversation { background: radial-gradient(circle at 75% 0%, rgba(80, 118, 104, 0.13), transparent 34rem), rgba(5, 10, 9, 0.48); }
+.alma-header, .alma-composer-wrap { border-color: rgba(255, 255, 255, 0.09); }
+.alma-header { border-bottom: 1px solid rgba(255, 255, 255, 0.09); }
+.alma-header h1 { color: #fff; }.alma-header p { color: rgba(232, 242, 237, 0.5); }
+.alma-mark, .alma-avatar-assistant { background: linear-gradient(135deg, #12c990, #0cae83); color: #04120d; box-shadow: 0 10px 30px rgba(16, 185, 129, 0.25), inset 0 1px rgba(255, 255, 255, 0.45); }
+.alma-message-area { background: linear-gradient(180deg, rgba(9, 17, 15, 0.24), rgba(2, 7, 6, 0.06)); }
+.alma-message { color: rgba(239, 247, 243, 0.78); }.alma-message p:first-of-type { color: rgba(255, 255, 255, 0.48); }.alma-message-user p:first-of-type { color: #fff; }.alma-message-user > div > div { border-radius: 18px; background: rgba(255, 255, 255, 0.055); padding: 16px 18px; box-shadow: inset 0 1px rgba(255, 255, 255, 0.075); }.alma-avatar-user { background: rgba(255, 255, 255, 0.13); color: #fff; }
+.alma-sources { border-left: 2px solid rgba(16, 185, 129, 0.74); color: rgba(232, 242, 237, 0.48); }.alma-sources p:first-child { color: rgba(232, 242, 237, 0.48); }
+.alma-loading { color: rgba(232, 242, 237, 0.56); }.alma-error { border: 1px solid rgba(255, 96, 96, 0.28); background: rgba(127, 29, 29, 0.2); color: #fecaca; }
+.alma-composer-wrap { border-top: 1px solid rgba(255, 255, 255, 0.09); background: rgba(5, 11, 10, 0.64); }.alma-composer { border: 1px solid rgba(255, 255, 255, 0.14); background: rgba(0, 0, 0, 0.25); box-shadow: inset 0 1px rgba(255, 255, 255, 0.06), 0 18px 45px rgba(0, 0, 0, 0.16); }.alma-composer:focus-within { border-color: rgba(255, 255, 255, 0.3); }.alma-composer textarea { color: #fff !important; }.alma-composer textarea::placeholder { color: rgba(232, 242, 237, 0.38); }.alma-send { background: #fff; color: #07110e; }.alma-send:hover { background: #dff8ed; }.alma-suggestion { border: 1px solid rgba(255, 255, 255, 0.11); background: rgba(255, 255, 255, 0.055); color: rgba(242, 248, 245, 0.64); }.alma-suggestion:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
 .legacy-sidebar nav > p {
   color: rgba(167, 243, 208, 0.46);
 }
