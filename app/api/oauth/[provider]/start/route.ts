@@ -28,6 +28,9 @@ export async function GET(req: Request, context: { params: Promise<{ provider: s
     url.searchParams.set("code_challenge", challenge);
     url.searchParams.set("code_challenge_method", "S256");
     if (provider === "google") { url.searchParams.set("access_type", "offline"); url.searchParams.set("prompt", "consent"); }
+    // Always show the Microsoft account picker so a personal browser session
+    // cannot silently select the wrong account instead of Legacy's M365 inbox.
+    if (provider === "microsoft") url.searchParams.set("prompt", "select_account");
     const response = NextResponse.redirect(url);
     const options = { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax" as const, path: `/api/oauth/${provider}`, maxAge: 600 };
     response.cookies.set(`legacy_oauth_state_${provider}`, state, options);
