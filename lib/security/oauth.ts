@@ -24,9 +24,23 @@ export function appOrigin() {
 }
 export function oauthRedirect(provider: OAuthProvider) { return `${appOrigin()}/api/oauth/${provider}/callback`; }
 
+/**
+ * Microsoft "common" also accepts personal Outlook/Hotmail accounts. LegacyOS
+ * connects a company Microsoft 365 inbox, so use the company's tenant when it
+ * is supplied and otherwise use Microsoft's work-or-school-only endpoint.
+ */
+export function microsoftTenant() {
+  const tenant = process.env.MICROSOFT_TENANT_ID?.trim();
+  return tenant && /^[0-9a-f-]{36}$/i.test(tenant) ? tenant : "organizations";
+}
+
+export function microsoftTokenUrl() {
+  return `https://login.microsoftonline.com/${microsoftTenant()}/oauth2/v2.0/token`;
+}
+
 export function oauthConfiguration(provider: OAuthProvider): OAuthConfiguration {
   if (provider === "google") return { clientId: process.env.GOOGLE_CLIENT_ID, clientSecret: process.env.GOOGLE_CLIENT_SECRET, authorizeUrl: "https://accounts.google.com/o/oauth2/v2/auth", tokenUrl: "https://oauth2.googleapis.com/token", scopes: GOOGLE_SCOPES };
-  if (provider === "microsoft") return { clientId: process.env.MICROSOFT_CLIENT_ID, clientSecret: process.env.MICROSOFT_CLIENT_SECRET, authorizeUrl: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize", tokenUrl: "https://login.microsoftonline.com/common/oauth2/v2.0/token", scopes: MICROSOFT_SCOPES };
+  if (provider === "microsoft") return { clientId: process.env.MICROSOFT_CLIENT_ID, clientSecret: process.env.MICROSOFT_CLIENT_SECRET, authorizeUrl: `https://login.microsoftonline.com/${microsoftTenant()}/oauth2/v2.0/authorize`, tokenUrl: microsoftTokenUrl(), scopes: MICROSOFT_SCOPES };
   return {
     clientId: process.env.ELEVATE_OAUTH_CLIENT_ID,
     clientSecret: process.env.ELEVATE_OAUTH_CLIENT_SECRET,

@@ -2,6 +2,7 @@ import "server-only";
 import { ApiError } from "@/lib/security/api";
 import { decryptSecret, encryptSecret } from "@/lib/security/encryption";
 import { createServiceSupabaseClient } from "@/lib/supabase/server";
+import { microsoftTokenUrl } from "@/lib/security/oauth";
 export type Provider="google"|"microsoft";
 export type Connection={id:string;user_id:string;provider:Provider;encrypted_access_token:string|null;encrypted_refresh_token:string|null;access_token_expires_at:string|null;shared_with_staff?:boolean};
 const now=()=>new Date().toISOString();
@@ -11,7 +12,7 @@ export async function refreshEmailToken(connection:Connection){
   const google=connection.provider==="google";
   const params=new URLSearchParams({client_id:google?process.env.GOOGLE_CLIENT_ID||"":process.env.MICROSOFT_CLIENT_ID||"",client_secret:google?process.env.GOOGLE_CLIENT_SECRET||"":process.env.MICROSOFT_CLIENT_SECRET||"",refresh_token:decryptSecret(connection.encrypted_refresh_token),grant_type:"refresh_token"});
   if(!google)params.set("scope","openid email offline_access User.Read Mail.Read Mail.ReadWrite Mail.Send");
-  const response=await fetch(google?"https://oauth2.googleapis.com/token":"https://login.microsoftonline.com/common/oauth2/v2.0/token",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:params,cache:"no-store"});
+  const response=await fetch(google?"https://oauth2.googleapis.com/token":microsoftTokenUrl(),{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:params,cache:"no-store"});
   const value=await response.json() as Record<string,unknown>;
   if(!response.ok||typeof value.access_token!=="string")throw new ApiError("provider_failure",`${connection.provider} permission refresh failed; reconnect the account.`);
   const update:Record<string,unknown>={encrypted_access_token:encryptSecret(value.access_token),access_token_expires_at:new Date(Date.now()+Number(value.expires_in||3600)*1000).toISOString(),status:"connected",last_error:null,updated_at:now()};
