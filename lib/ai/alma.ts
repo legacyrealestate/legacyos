@@ -4,7 +4,11 @@ import { openAIModel } from "@/lib/config/env";
 
 function client() {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
-  if (!apiKey) throw new ApiError("service_unavailable", "OPENAI_API_KEY is not configured.");
+  if (!apiKey)
+    throw new ApiError(
+      "service_unavailable",
+      "OPENAI_API_KEY is not configured.",
+    );
   return new OpenAI({ apiKey });
 }
 
@@ -34,7 +38,8 @@ export async function generateAlmaResponse(input: {
   });
 
   const text = response.output_text?.trim();
-  if (!text) throw new ApiError("server_error", "ALMA returned an empty response.");
+  if (!text)
+    throw new ApiError("server_error", "ALMA returned an empty response.");
   return { text, model: openAIModel(), responseId: response.id };
 }
 
@@ -43,6 +48,7 @@ export async function generateEmailDraft(input: {
   body: string;
   contactName?: string | null;
   property?: string | null;
+  leadContext?: string | null;
 }) {
   const response = await client().responses.create({
     model: openAIModel(),
@@ -52,6 +58,7 @@ export async function generateEmailDraft(input: {
         content:
           "Draft a concise, professional property-management email reply for Legacy Nashville. Acknowledge the message, state the next safe step, " +
           "avoid promising a specific time or outcome that was not provided, never give legal advice, and never state that emergency services or a vendor were dispatched. " +
+          "Use the supplied lead context only when it is relevant. Do not invent availability, pricing, dates, or policies. " +
           "Return only the email body, with no subject line or analysis.",
       },
       {
@@ -61,6 +68,7 @@ export async function generateEmailDraft(input: {
     ],
   });
   const text = response.output_text?.trim();
-  if (!text) throw new ApiError("server_error", "ALMA returned an empty email draft.");
+  if (!text)
+    throw new ApiError("server_error", "ALMA returned an empty email draft.");
   return text;
 }
