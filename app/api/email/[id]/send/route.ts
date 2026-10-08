@@ -1,5 +1,5 @@
 import { apiError, apiJson, ApiError } from "@/lib/security/api";
-import { requireAdmin } from "@/lib/security/auth";
+import { requireUser } from "@/lib/security/auth";
 import {
   requestEmailAction,
   approveEmailAction,
@@ -11,11 +11,11 @@ export async function POST(
   context: { params: Promise<{ id: string }> },
 ) {
   try {
-    const auth = await requireAdmin();
-    if (process.env.ENABLE_OUTBOUND_COMMUNICATIONS !== "true") {
+    const auth = await requireUser();
+    if (process.env.ENABLE_STAFF_EMAIL_SEND !== "true") {
       throw new ApiError(
         "forbidden",
-        "Outbound email is disabled. Set ENABLE_OUTBOUND_COMMUNICATIONS=true in Vercel before sending.",
+        "Staff email sending is disabled. Set ENABLE_STAFF_EMAIL_SEND=true in Vercel before sending.",
       );
     }
     const { id } = await context.params;

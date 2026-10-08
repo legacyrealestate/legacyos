@@ -117,6 +117,7 @@ export default function EmailPage() {
     [actions, setActions] = useState<Action[]>([]),
     [staff, setStaff] = useState<Staff[]>([]),
     [audit, setAudit] = useState<Audit[]>([]);
+  const [manualSendEnabled,setManualSendEnabled]=useState(false);
   const [selectedId, setSelectedIdState] = useState<string | null>(null),
     [folder, setFolder] = useState("All mail"),
     [query, setQuery] = useState(""),
@@ -132,10 +133,15 @@ export default function EmailPage() {
         tone: "error",
         text: "Microsoft 365 connection is not configured yet. An administrator must add the Microsoft OAuth values in Vercel and redeploy.",
       };
+    if (params.get("connection_error") === "microsoft_permission_denied")
+      return {
+        tone: "error",
+        text: "Microsoft sign-in was cancelled or permission was denied. Ask Legacy IT to grant the app consent, then reconnect using the Legacy work account.",
+      };
     if (params.get("connected") === "microsoft")
       return {
         tone: "notice",
-        text: "Microsoft 365 is connected. Select Sync Microsoft 365 to import the shared Inbox.",
+        text: "Microsoft 365 is connected. Select Sync Microsoft 365 to import this signed-in account's Inbox.",
       };
     return { tone: "notice", text: "" };
   });
@@ -153,6 +159,9 @@ export default function EmailPage() {
     automationDisabled: false,
   });
   const selected = threads.find((thread) => thread.id === selectedId) || null;
+  const latestInbound = selected?.email_messages
+    .filter((message) => message.direction === "inbound")
+    .sort((a, b) => Date.parse(b.provider_sent_at || b.created_at) - Date.parse(a.provider_sent_at || a.created_at))[0] || null;
   const selectedActions = selected
     ? actions.filter((action) =>
         selected.email_messages.some(
@@ -166,7 +175,7 @@ export default function EmailPage() {
   function chooseThread(thread: Thread | null) {
     setSelectedIdState(thread?.id || null);
     if (!thread) return;
-    const latest = [...thread.email_messages].sort(
+    const latest = thread.email_messages.filter((message) => message.direction === "inbound").sort(
       (a, b) =>
         Date.parse(b.provider_sent_at || b.created_at) -
         Date.parse(a.provider_sent_at || a.created_at),
@@ -202,6 +211,7 @@ export default function EmailPage() {
       setActions(json.actions || []);
       setStaff(json.staff || []);
       setAudit(json.audit || []);
+      setManualSendEnabled(json.manualSendEnabled === true);
       chooseThread(
         rows.find((item: Thread) => item.id === selectedId) || rows[0] || null,
       );
@@ -222,6 +232,7 @@ export default function EmailPage() {
         setActions(email.actions || []);
         setStaff(email.staff || []);
         setAudit(email.audit || []);
+        setManualSendEnabled(email.manualSendEnabled === true);
         const requested = new URLSearchParams(window.location.search).get(
           "thread",
         );
@@ -293,16 +304,19 @@ export default function EmailPage() {
 
   async function sync() {
     setBusy("sync");
-    const response = await fetch("/api/email", { method: "POST" });
-    const json = await response.json();
-    if (!response.ok) setError(json.error || "Email synchronization failed.");
-    else {
-      setNotice(
-        `Imported ${json.imported} messages from ${json.connections} mailbox connections.`,
-      );
-      await load();
+    try {
+      const response = await fetch("/api/email", { method: "POST" });
+      const json = await response.json();
+      if (!response.ok) setError(json.error || "Email synchronization failed.");
+      else {
+        setNotice(`Imported ${json.imported} messages; organized ${json.processing?.completed || 0} queued items. If the inbox has more history, run Sync again.`);
+        await load();
+      }
+    } catch {
+      setError("The inbox sync could not finish. Please retry; saved pages will resume where they stopped.");
+    } finally {
+      setBusy("");
     }
-    setBusy("");
   }
   function connectMicrosoft() {
     window.location.assign("/api/oauth/microsoft/start?returnTo=%2Femail");
@@ -325,7 +339,7 @@ export default function EmailPage() {
     setBusy("");
   }
   async function submit(action = composer.action) {
-    const message = selected?.email_messages[0];
+    const message = latestInbound;
     if (!message) return;
     setBusy("compose");
     const response = await fetch(`/api/email/${message.id}/action`, {
@@ -443,7 +457,7 @@ export default function EmailPage() {
     setBusy("");
   }
   async function sendFromInbox() {
-    const message = selected?.email_messages[0];
+    const message = latestInbound;
     if (!message || !composer.body.trim()) return;
     setBusy("send");
     const response = await fetch(`/api/email/${message.id}/send`, {
@@ -461,7 +475,7 @@ export default function EmailPage() {
     const json = await response.json();
     if (!response.ok) setError(json.error || "Email could not be sent.");
     else {
-      setNotice("Sent from the connected Legacy Microsoft 365 inbox.");
+      setNotice("Microsoft 365 accepted the reply from the connected mailbox. Check Sent Items to confirm delivery.");
       await load();
     }
     setBusy("");
@@ -479,13 +493,11 @@ export default function EmailPage() {
               <p className="text-[10px] font-semibold uppercase tracking-[.28em] text-emerald-700">
                 Microsoft 365 lead desk
               </p>
-              <h1 className="mt-3 text-4xl font-semibold tracking-tight md:text-5xl">
-                Leads
-              </h1>
+                <h1 className="mt-3 text-3xl font-semibold tracking-tight md:text-4xl">Leads</h1>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-500">
-                New messages become organized leads, callback tasks, or
-                staff-review items. Nothing external sends without the approval
-                rules you enable.
+                Connect the Legacy work mailbox, sort new messages into leads
+                and staff-review items, then edit and send prepared replies.
+                Email never sends itself in the handoff configuration.
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
                 {connections
@@ -503,20 +515,7 @@ export default function EmailPage() {
               </div>
             </div>
             <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  setSelectedId(threads[0]?.id || null);
-                  setComposer({
-                    action: "send",
-                    to: "",
-                    subject: "",
-                    body: "",
-                  });
-                }}
-                className="h-11 rounded-xl border border-black/[.10] bg-white px-5 text-sm hover:bg-zinc-50"
-              >
-                Compose
-              </button>
+              <span className="hidden self-center text-xs text-zinc-500 md:inline">Select a thread to draft and reply</span>
               <button
                 onClick={sync}
                 disabled={
@@ -563,8 +562,8 @@ export default function EmailPage() {
             (connection) => connection.provider === "microsoft",
           ) && (
             <State
-              title="Connect the shared leasing inbox"
-              detail="Connect Microsoft 365 here. The first import reads the Inbox; later syncs use Microsoft delta updates so LegacyOS only brings in changes."
+              title="Connect Legacy's leasing mailbox"
+              detail="Sign in with the Legacy work account whose own Inbox receives leasing mail. After connecting, Sync imports recent messages and organizes them. A separately delegated shared mailbox is not selected automatically."
               action={
                 <button onClick={connectMicrosoft} disabled={!!busy}>
                   Connect Microsoft 365
@@ -574,8 +573,8 @@ export default function EmailPage() {
           )}
         {!loading && connected.length > 0 && threads.length === 0 && (
           <State
-            title="Ready to import the shared mailbox"
-            detail="The first import reads the connected inbox. Future syncs use incremental updates, so messages are not repeatedly downloaded."
+            title="Ready to import the connected mailbox"
+            detail="Import up to 30 days of the connected Inbox; Sync also organizes queued messages and prepares staff-review drafts. Repeat Sync to catch up with more messages."
             action={<button onClick={sync}>Import and analyze email</button>}
           />
         )}
@@ -775,10 +774,8 @@ export default function EmailPage() {
                             <p className="text-[10px] font-semibold uppercase tracking-[.22em] text-emerald-700">
                               Reply studio
                             </p>
-                            <p className="mt-1 text-xs text-zinc-500">
-                              ALMA writes the first draft. A staff member always
-                              controls sending.
-                            </p>
+                            <p className="mt-1 text-xs text-zinc-500">ALMA prepares the draft. Staff reviews and sends from the connected mailbox.</p>
+                            {!manualSendEnabled && <p className="mt-2 text-xs text-amber-200">Staff send is disabled. Add ENABLE_STAFF_EMAIL_SEND=true in Legacy Vercel and redeploy.</p>}
                           </div>
                           <button
                             onClick={regenerate}
@@ -826,7 +823,7 @@ export default function EmailPage() {
                           />
                           <div className="flex flex-wrap gap-2">
                             <button
-                              disabled={!!busy || !composer.body.trim()}
+                              disabled={!!busy || !manualSendEnabled || !latestInbound || !composer.body.trim()}
                               onClick={sendFromInbox}
                               className="send-from-inbox rounded-xl px-4 py-2 text-sm font-semibold disabled:opacity-50"
                             >
@@ -835,7 +832,7 @@ export default function EmailPage() {
                                 : "Send from connected inbox"}
                             </button>
                             <button
-                              disabled={!!busy || !composer.body.trim()}
+                              disabled={!!busy || !latestInbound || !composer.body.trim()}
                               onClick={() => submit("draft")}
                               className="rounded-xl border px-4 py-2 text-sm disabled:opacity-50"
                             >

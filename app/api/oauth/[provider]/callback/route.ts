@@ -12,6 +12,7 @@ export async function GET(req: Request, context: { params: Promise<{ provider: s
     if (!isOAuthProvider(raw)) throw new ApiError("bad_request", "Unsupported provider.");
     const provider = raw;
     const url = new URL(req.url), state = url.searchParams.get("state"), code = url.searchParams.get("code");
+    if(provider==="microsoft"&&url.searchParams.get("error"))return NextResponse.redirect(`${appOrigin()}/email?connection_error=microsoft_permission_denied`);
     const cookies = Object.fromEntries((req.headers.get("cookie") || "").split(";").map((v) => v.trim().split("=").map(decodeURIComponent)));
     if (!state || !code || state !== cookies[`legacy_oauth_state_${provider}`]) throw new ApiError("unauthorized", "OAuth state validation failed.");
     const verifier = cookies[`legacy_oauth_pkce_${provider}`];
@@ -24,8 +25,14 @@ export async function GET(req: Request, context: { params: Promise<{ provider: s
     if (!tokenResponse.ok || typeof token.access_token !== "string") throw new ApiError("provider_failure", `${provider} authorization failed.`);
     const profileUrl = provider === "google" ? "https://www.googleapis.com/oauth2/v2/userinfo" : provider === "microsoft" ? "https://graph.microsoft.com/v1.0/me?$select=mail,userPrincipalName" : process.env.ELEVATE_OAUTH_PROFILE_URL;
     const profileResponse = profileUrl ? await fetch(profileUrl, { headers: { Authorization: `Bearer ${token.access_token}` }, cache: "no-store" }) : null;
+    if(provider==="microsoft"&&!profileResponse?.ok)throw new ApiError("provider_failure","Microsoft could not verify this work account. Ask Legacy IT to check Graph permissions and consent.");
     const profile = profileResponse?.ok ? await profileResponse.json() as Record<string, unknown> : {};
     const accountEmail = String(profile.email || profile.mail || profile.userPrincipalName || "") || null;
+    if(provider==="microsoft"){
+      if(!accountEmail)throw new ApiError("provider_failure","Microsoft did not return a mailbox identity.");
+      const inbox=await fetch("https://graph.microsoft.com/v1.0/me/mailFolders/inbox?$select=id",{headers:{Authorization:`Bearer ${token.access_token}`},cache:"no-store"});
+      if(!inbox.ok)throw new ApiError("provider_failure","This Microsoft account cannot read its Inbox. Ask Legacy IT to verify the mailbox and Mail.Read consent.");
+    }
     const supabase = createServiceSupabaseClient();
     const payload: Record<string, unknown> = { user_id: auth.user.id, provider, account_email: accountEmail, scopes: String(token.scope || "").split(" ").filter(Boolean), encrypted_access_token: encryptSecret(token.access_token), access_token_expires_at: new Date(Date.now() + Number(token.expires_in || 3600) * 1000).toISOString(), status: "connected", shared_with_staff: true, last_error: null, updated_at: new Date().toISOString() };
     if (typeof token.refresh_token === "string") payload.encrypted_refresh_token = encryptSecret(token.refresh_token);

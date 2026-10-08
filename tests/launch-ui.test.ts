@@ -106,6 +106,6 @@ test("integration UI never equates configuration with authentication", () => {
 test("launch pages contain actionable disconnected, empty, loading, and error states", () => {
   for (const text of ["Operations data is unavailable", "No calls have been imported", "Loading command center"]) assert.ok(dashboard.includes(text));
   for (const text of ["No calls yet", "Loading calls", "Synchronization failed"]) assert.ok(calls.includes(text));
-  for (const text of ["Mailbox authorization expired", "Connect the shared leasing inbox", "Ready to import the shared mailbox", "Loading shared inbox"]) assert.ok(email.includes(text));
+  for (const text of ["Mailbox authorization expired", "Connect Legacy's leasing mailbox", "Ready to import the connected mailbox", "Loading shared inbox"]) assert.ok(email.includes(text));
   for (const text of ["Connected but never synchronized", "Missing credentials", "provider could not be reached"]) assert.ok(integrations.includes(text));
 });

@@ -2,6 +2,7 @@ import { apiError, apiJson, ApiError } from "@/lib/security/api";
 import { requireUser } from "@/lib/security/auth";
 import { createServiceSupabaseClient } from "@/lib/supabase/server";
 import { syncEmail } from "@/lib/providers/email";
+import { runAlma } from "@/lib/workflows/alma";
 
 export async function GET(req: Request) {
   try {
@@ -13,7 +14,7 @@ export async function GET(req: Request) {
       .or(`shared_with_staff.eq.true,user_id.eq.${auth.user.id}`);
     if (connectionError) throw new ApiError(connectionError.code === "42P01" ? "missing_migration" : "server_error", "Email platform is not available.");
     const ids = (connections || []).map((item) => item.id);
-    if (!ids.length) return apiJson({ threads: [], connections: [], actions: [], staff: [] });
+    if (!ids.length) return apiJson({ threads: [], connections: [], actions: [], staff: [], manualSendEnabled: process.env.ENABLE_STAFF_EMAIL_SEND === "true" });
     const params = new URL(req.url).searchParams, search = params.get("q")?.slice(0, 120).toLowerCase();
     const threadQuery = db.from("email_threads")
       .select("*,email_messages(id,sender,recipients,cc,subject,body_text,body_html,attachment_metadata,provider_sent_at,status,is_read,internet_message_id,direction,created_at)")
@@ -29,13 +30,15 @@ export async function GET(req: Request) {
     if(audit.error||contacts.error||tickets.error||leads.error||jobs.error)throw new ApiError("server_error","Unable to load email office relationships.");
     const rows=rawThreads.map(thread=>({...thread,contact:(contacts.data||[]).find(item=>item.id===thread.contact_id)||null,ticket:(tickets.data||[]).find(item=>item.id===thread.ticket_id)||null,lead:(leads.data||[]).find(item=>item.thread_id===thread.id)||null,intake_job:(jobs.data||[]).find(item=>item.thread_id===thread.id)||null})).filter(thread=>{const haystack=JSON.stringify(thread).toLowerCase();return(!search||haystack.includes(search))&&(!params.get("classification")||thread.primary_classification===params.get("classification"))&&(!params.get("urgency")||thread.urgency===params.get("urgency"))&&(!params.get("provider")||thread.provider===params.get("provider"))&&(!params.get("status")||thread.status===params.get("status"))&&(!params.get("automation")||(params.get("automation")==="disabled"?thread.automation_disabled:thread.automation_decision===params.get("automation")));});
     const backlog=(jobs.data||[]).filter(job=>["queued","retry","running"].includes(job.status)).length,failures=(jobs.data||[]).filter(job=>job.status==="dead_letter").length;
-    return apiJson({ threads: rows, connections, actions: actions.data || [], staff: staff.data || [], audit: audit.data || [], processing:{backlog,failures,lastSuccess:rawThreads.map(item=>item.last_processing_success_at).filter(Boolean).sort().at(-1)||null,nextExpectedRun:"Daily at 06:15 UTC (import) and 06:30 UTC (ALMA repair)"} });
+    return apiJson({ threads: rows, connections, actions: actions.data || [], staff: staff.data || [], audit: audit.data || [], manualSendEnabled:process.env.ENABLE_STAFF_EMAIL_SEND === "true", processing:{backlog,failures,lastSuccess:rawThreads.map(item=>item.last_processing_success_at).filter(Boolean).sort().at(-1)||null,nextExpectedRun:"Daily at 06:15 UTC (import) and 06:30 UTC (ALMA repair)"} });
   } catch (error) { return apiError(error); }
 }
 
 export async function POST() {
   try {
     const auth = await requireUser();
-    return apiJson({ success: true, ...await syncEmail(auth.user.id) });
+    const synced=await syncEmail(auth.user.id,"microsoft");
+    const processing=await runAlma(10);
+    return apiJson({ success: true, ...synced, processing });
   } catch (error) { return apiError(error); }
 }

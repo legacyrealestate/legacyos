@@ -160,7 +160,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="legacy-shell min-h-screen bg-[#08100f] text-zinc-950 md:flex">
-      <header className="fixed inset-x-0 top-0 z-[200] flex h-[68px] items-center justify-between border-b border-black/[.07] bg-white/95 px-5 backdrop-blur md:hidden">
+      <header className="fixed inset-x-0 top-0 z-[200] flex h-[68px] items-center justify-between border-b border-white/10 bg-[#08100f]/90 px-5 text-white backdrop-blur-2xl md:hidden">
         <span className="text-lg font-semibold tracking-tight">LegacyOS</span>
         <div className="flex items-center gap-4">
           <button

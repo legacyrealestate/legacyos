@@ -7,9 +7,10 @@ export type SafeHeaders = Record<string,string>;
 export function normalizeEmail(value:string){return value.trim().toLowerCase()}
 export function normalizePhone(value:string){const digits=value.replace(/\D/g,"");return digits.length===10?`+1${digits}`:digits.length>=11?`+${digits}`:null}
 export function parseMailbox(value:unknown){
-  const raw=typeof value==="string"?value:String((value as Record<string,unknown>|null)?.value||(value as Record<string,unknown>|null)?.emailAddress&&((value as Record<string,unknown>).emailAddress as Record<string,unknown>).address||"");
+  const graph=(value as Record<string,unknown>|null)?.emailAddress as Record<string,unknown>|undefined;
+  const raw=typeof value==="string"?value:String((value as Record<string,unknown>|null)?.value||graph?.address||"");
   const match=raw.match(/^\s*"?([^"<]*)"?\s*<([^>]+)>/) ;
-  return {name:(match?.[1]||"").trim()||null,email:normalizeEmail(match?.[2]||raw)};
+  return {name:(match?.[1]||String(graph?.name||"")).trim()||null,email:normalizeEmail(match?.[2]||raw)};
 }
 export function textOnly(value:string|null|undefined){return (value||"").replace(/<style[\s\S]*?<\/style>/gi," ").replace(/<script[\s\S]*?<\/script>/gi," ").replace(/<[^>]+>/g," ").replace(/&nbsp;/gi," ").replace(/&amp;/gi,"&").replace(/\s+/g," ").trim().slice(0,100_000)}
 export function extractContact(text:string){const phone=text.match(/(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}/)?.[0];const unit=text.match(/\b(?:unit|apt|apartment|suite)\s*#?([\w-]+)/i)?.[1];return{phone:phone?normalizePhone(phone):null,unit:unit||null,signature:text.split(/\n--\s*\n|\n_{3,}\n/).at(-1)?.slice(0,1000)||null}}
@@ -25,8 +26,8 @@ export function classifyEmail(input:{subject?:string|null;body?:string|null;head
   const text=textOnly(`${input.subject||""}\n${input.body||""}`),safety=classifySafety(text),labels:EmailClassification[]=[];
   if(suppressionReason({sender:"",headers:input.headers}))labels.push("Spam/automated");
   if(safety.classification==="emergency")labels.push("Emergency maintenance");
-  if(/\b(?:lease|leasing|rent|rental|availability|tour|showing|move[- ]?in|bedroom)\b/i.test(text))labels.push("Lead/leasing inquiry");
   if(/\b(?:repair|broken|leak|toilet|sink|hvac|air condition|heat|maintenance|mold|pest|lockout)\b/i.test(text))labels.push(safety.classification==="emergency"?"Emergency maintenance":"Maintenance request");
+  if(/\b(?:lease|leasing|rent|rental|availability|tour|showing|move[- ]?in|bedroom)\b/i.test(text))labels.push("Lead/leasing inquiry");
   if(/\b(?:resident|tenant|my unit|my apartment)\b/i.test(text))labels.push("Resident request");
   if(/\b(?:owner|statement|distribution)\b/i.test(text))labels.push("Owner communication");
   if(/\b(?:vendor|invoice|estimate|contractor)\b/i.test(text))labels.push("Vendor communication");

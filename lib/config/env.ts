@@ -42,9 +42,9 @@ export function getIntegrationStates(): IntegrationState[] {
     ),
     state(
       "email",
-      "Gmail / Microsoft 365",
-      ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "MICROSOFT_CLIENT_ID", "MICROSOFT_CLIENT_SECRET", "APP_ENCRYPTION_KEY", "NEXT_PUBLIC_APP_URL"],
-      "Shared OAuth inboxes, provider drafts and sends, and ALMA email intelligence"
+      "Microsoft 365",
+      ["MICROSOFT_CLIENT_ID", "MICROSOFT_CLIENT_SECRET", "MICROSOFT_TENANT_ID", "APP_ENCRYPTION_KEY", "NEXT_PUBLIC_APP_URL"],
+      "The signed-in work mailbox, provider drafts and staff-approved sends. A separately delegated shared mailbox is not selected automatically."
     ),
   ];
 }

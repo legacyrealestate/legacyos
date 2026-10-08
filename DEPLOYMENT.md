@@ -1,8 +1,10 @@
 # LegacyOS launch deployment
 
+**For this Outlook handoff, use [HANDOFF-LEGACY.md](HANDOFF-LEGACY.md) first.** The notes below also cover optional phone/Gmail providers. On a live Supabase project, compare migration history and back up before applying missing SQL.
+
 ## Migration order
 
-Apply migrations in filename order, using the Supabase migration runner. Do not skip the compatibility migration:
+Apply all migrations in `supabase/migrations` in filename order using the Supabase migration runner. Do not skip the compatibility migration. The initial chain is:
 
 1. `202607170001_pilot_hardening.sql`
 2. `202607200001_autonomous_operations.sql`
@@ -21,7 +23,7 @@ Set `ELEVENLABS_API_KEY`, `ELEVENLABS_WEBHOOK_SECRET`, `ELEVENLABS_AGENT_ID`, an
 
 ## Gmail and Microsoft 365
 
-Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `APP_ENCRYPTION_KEY`, and `NEXT_PUBLIC_APP_URL`. `APP_ENCRYPTION_KEY` must be a base64-encoded 32-byte value.
+For Microsoft's handoff, set `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_TENANT_ID`, `APP_ENCRYPTION_KEY`, and `NEXT_PUBLIC_APP_URL`. Google credentials are optional and not required. `APP_ENCRYPTION_KEY` must be a base64-encoded 32-byte value; preserve the previous key for stored OAuth tokens.
 
 Gmail requires `openid email profile`, `gmail.readonly`, `gmail.modify`, `gmail.compose`, and `gmail.send`. Microsoft requires `openid email offline_access User.Read Mail.Read Mail.ReadWrite Mail.Send`.
 
@@ -30,12 +32,12 @@ Register these exact redirects:
 - `https://YOUR_DOMAIN/api/oauth/google/callback`
 - `https://YOUR_DOMAIN/api/oauth/microsoft/callback`
 
-Schedule `GET /api/cron/email` with `Authorization: Bearer $CRON_SECRET`; five minutes is the recommended launch interval. Provider OAuth tokens are encrypted at rest, refreshed server-side, and never returned to clients.
+`vercel.json` schedules `GET /api/cron/email` daily at 06:15 UTC and `/api/cron/alma` daily at 06:30 UTC on Vercel Hobby. Vercel sends `Authorization: Bearer $CRON_SECRET`. Staff can also click Sync; initial import advances in small pages. Provider OAuth tokens are encrypted at rest, refreshed server-side, and never returned to clients. This is not real-time syncing.
 
 ## Production verification
 
 1. Confirm only the two approved employee emails are active in `profiles`; keep all other profiles inactive.
-2. Run all four migrations in order and inspect the migration runner result.
+2. Confirm all applicable migrations are recorded in the active Supabase project; back up before applying any missing migration.
 3. Sign in as each employee and verify the same shared Gmail/Microsoft threads are visible.
 4. Use Integrations smoke tests; distinguish configured from authenticated and confirm no secret appears in logs or responses.
 5. Send a signed ElevenLabs test conversation, then verify transcript turns, classification, follow-up state, and authenticated audio playback.

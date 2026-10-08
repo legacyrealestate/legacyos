@@ -72,7 +72,7 @@ function transcriptToTurns(transcript: unknown) {
   });
 }
 
-export function normalizePayload(payload: Record<string, unknown>) {
+function normalizePayload(payload: Record<string, unknown>) {
   const data =
     (payload.data && typeof payload.data === "object"
       ? (payload.data as Record<string, unknown>)
